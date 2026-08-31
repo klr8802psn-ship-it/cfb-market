@@ -11,7 +11,7 @@ export default function Landing() {
           CFB Market
         </h1>
         <p style={{ color: 'var(--muted)', fontSize: 16, lineHeight: 1.6, marginBottom: 32 }}>
-          Trade FBS team stocks. Prices move with ESPN FPI power rankings.
+          Trade FBS team stocks. Prices move with ESPN FPI and SP+ power rankings.
           The biggest portfolio at season end wins.
         </p>
         <Link to="/login" className="btn btn--accent" style={{ width: '100%', display: 'block', textAlign: 'center', marginBottom: 12 }}>
@@ -25,7 +25,7 @@ export default function Landing() {
         </p>
         {[
           ['Play money only', 'No real cash — just bragging rights. Everyone starts with the same bankroll.'],
-          ['Prices follow FPI', 'Teams that win and climb the power rankings go up in value.'],
+          ['Prices follow the rankings', 'Teams that win and climb the ESPN FPI and SP+ power rankings go up in value.'],
           ['Weekly settle', 'Prices update each Monday after the weekend games.'],
           ['40% cap per team', "Can't put more than 40% of your portfolio in one team."],
           ['Best portfolio wins', 'Final standings at season end determine the champion.'],
