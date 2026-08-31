@@ -24,7 +24,7 @@ export default function Landing() {
           How it works
         </p>
         {[
-          ['$2,000 to start', 'Every player gets the same amount of play money.'],
+          ['Play money only', 'No real cash — just bragging rights. Everyone starts with the same bankroll.'],
           ['Prices follow FPI', 'Teams that win and climb the power rankings go up in value.'],
           ['Weekly settle', 'Prices update each Monday after the weekend games.'],
           ['40% cap per team', "Can't put more than 40% of your portfolio in one team."],
@@ -38,6 +38,10 @@ export default function Landing() {
           </div>
         ))}
       </div>
+
+      <p style={{ fontSize: 12, color: 'var(--faint)', textAlign: 'center', paddingTop: 16, paddingBottom: 32 }}>
+        CFB Market uses virtual play money. No real money is wagered or won.
+      </p>
     </div>
   )
 }
