@@ -5,7 +5,7 @@ import { useLeague } from '../context/LeagueContext'
 import TeamMark from '../components/TeamMark'
 import PortfolioBar from '../components/PortfolioBar'
 import TradeModal from '../components/TradeModal'
-import { STOCK_START_CASH, holdingsValue, validateBuy, validateSell } from '../lib/stocks'
+import { STOCK_START_CASH, holdingsValue, portfolioValue, validateBuy, validateSell } from '../lib/stocks'
 
 function fmt(n) {
   return '$' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -88,6 +88,51 @@ function MarketRow({ team, price, prevPrice, history, holdings, cash, priceByTea
   )
 }
 
+function LeaderboardTab({ accounts, allHoldings, priceByTeam, members, currentUserId, startCash }) {
+  const ranked = useMemo(() => {
+    return members.map(m => {
+      const acct = accounts.find(a => a.user_id === m.user_id)
+      const cash = acct ? Number(acct.cash) : startCash
+      const holdings = allHoldings.filter(h => h.user_id === m.user_id).map(h => ({ team_id: h.team_id, shares: h.shares }))
+      const total = portfolioValue({ cash, holdings, priceByTeam })
+      const pl = total - startCash
+      return { ...m, cash, total, pl }
+    }).sort((a, b) => b.total - a.total)
+  }, [accounts, allHoldings, priceByTeam, members, startCash])
+
+  if (!ranked.length) {
+    return <p style={{ color: 'var(--muted)', fontSize: 14, textAlign: 'center', padding: 32 }}>No members yet.</p>
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {ranked.map((m, idx) => {
+        const isMe = m.user_id === currentUserId
+        const plPos = m.pl > 0
+        const plNeg = m.pl < 0
+        const fmtPl = (pl) => (pl > 0 ? '+' : '') + '$' + Math.abs(pl).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        return (
+          <div key={m.user_id} className="card" style={{ padding: 12, display: 'flex', alignItems: 'center', gap: 12, ...(isMe ? { borderColor: 'rgba(245,158,11,0.4)', background: 'rgba(245,158,11,0.04)' } : {}) }}>
+            <div style={{ width: 28, height: 28, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-mono)', fontWeight: 900, fontSize: 12, flexShrink: 0, background: idx === 0 ? 'rgba(245,158,11,0.15)' : 'rgba(255,255,255,0.05)', color: idx === 0 ? '#F59E0B' : '#94a3b8', border: idx === 0 ? '1px solid rgba(245,158,11,0.3)' : '1px solid rgba(255,255,255,0.06)' }}>
+              {idx + 1}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontWeight: 700, color: '#fff', fontSize: 14, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {m.name ?? 'Unknown'}{isMe && <span style={{ color: '#F59E0B', marginLeft: 6, fontSize: 10, fontWeight: 900 }}>You</span>}
+              </p>
+              <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--faint)', margin: 0 }}>${m.cash.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} cash</p>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <p style={{ fontFamily: 'var(--font-mono)', fontWeight: 900, fontSize: 14, color: '#fff', margin: 0 }}>${m.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 900, margin: 0, color: plPos ? 'var(--positive)' : plNeg ? 'var(--negative)' : 'var(--muted)' }}>{fmtPl(m.pl)}</p>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function Market() {
   const { user } = useAuth()
   const { league, config, memberLoading } = useLeague()
@@ -100,6 +145,9 @@ export default function Market() {
   const [historyByTeam, setHistoryByTeam] = useState({})
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState(null)
+  const [leaderAccounts, setLeaderAccounts] = useState([])
+  const [leaderHoldings, setLeaderHoldings] = useState([])
+  const [members, setMembers] = useState([])
 
   // Trade modal state
   const [tradeTeam, setTradeTeam] = useState(null)
@@ -119,7 +167,14 @@ export default function Market() {
       supabase.from('stock_holdings').select('team_id, shares').eq('league_id', league.id).eq('season_id', seasonId).eq('user_id', user.id),
       supabase.from('teams').select('id, name, abbreviation, primary_color').eq('sport', 'CFB').order('name'),
       supabase.from('stock_prices').select('team_id, price, settled_at').eq('season_id', seasonId).order('settled_at', { ascending: false }),
-    ]).then(([{ data: acct }, { data: myHoldings }, { data: teamRows }, { data: allPrices }]) => {
+      supabase.from('stock_accounts').select('user_id, cash').eq('league_id', league.id).eq('season_id', seasonId),
+      supabase.from('stock_holdings').select('user_id, team_id, shares').eq('league_id', league.id).eq('season_id', seasonId),
+      supabase.from('league_members').select('user_id, user:users(display_name)').eq('league_id', league.id),
+    ]).then(results => {
+      const [
+        { data: acct }, { data: myHoldings }, { data: teamRows }, { data: allPrices },
+        { data: leagueAccts }, { data: leagueHoldings }, { data: leagueMembers },
+      ] = results
       setCash(acct?.cash != null ? Number(acct.cash) : startCash)
       setHoldings((myHoldings ?? []).filter(h => h.shares > 0))
       setTeams(teamRows ?? [])
@@ -142,6 +197,9 @@ export default function Market() {
       setPriceByTeam(latest)
       setPrevPriceByTeam(prev)
       setHistoryByTeam(hist)
+      setLeaderAccounts(leagueAccts ?? [])
+      setLeaderHoldings((leagueHoldings ?? []).filter(h => h.shares > 0))
+      setMembers((leagueMembers ?? []).map(m => ({ user_id: m.user_id, name: m.user?.display_name ?? 'Unknown' })))
       setLoading(false)
     }).catch(err => { setLoadErr(err.message); setLoading(false) })
   }, [config?.season_id, user?.id, league?.id])
@@ -324,9 +382,16 @@ export default function Market() {
         )
       })()}
 
-      {/* Leaderboard tab stub — filled in Task 6 */}
+      {/* Leaderboard tab */}
       {tab === 'leaderboard' && (
-        <p style={{ color: 'var(--muted)', fontSize: 14, textAlign: 'center', padding: 32 }}>Leaderboard coming soon.</p>
+        <LeaderboardTab
+          accounts={leaderAccounts}
+          allHoldings={leaderHoldings}
+          priceByTeam={priceByTeam}
+          members={members}
+          currentUserId={user?.id}
+          startCash={startCash}
+        />
       )}
     </div>
 
