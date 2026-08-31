@@ -6,29 +6,28 @@ const LeagueContext = createContext(null)
 
 export function LeagueProvider({ children }) {
   const { user } = useAuth()
+  const [allLeagues, setAllLeagues] = useState([])  // [{ league, config }]
   const [league, setLeague] = useState(null)
   const [config, setConfig] = useState(null)
   const [memberLoading, setMemberLoading] = useState(true)
 
   useEffect(() => {
     if (!user) {
+      setAllLeagues([])
       setLeague(null)
       setConfig(null)
       setMemberLoading(false)
       return
     }
     setMemberLoading(true)
-    // Find leagues the user belongs to that have stock enabled
+
     supabase
       .from('league_members')
       .select('league_id, leagues(id, name, invite_code)')
       .eq('user_id', user.id)
       .then(async ({ data: memberships }) => {
-        if (!memberships?.length) {
-          setMemberLoading(false)
-          return
-        }
-        // For each membership, check if stock_config exists and is enabled
+        if (!memberships?.length) { setMemberLoading(false); return }
+
         const leagueIds = memberships.map(m => m.league_id)
         const { data: configs } = await supabase
           .from('stock_config')
@@ -36,24 +35,41 @@ export function LeagueProvider({ children }) {
           .in('league_id', leagueIds)
           .eq('enabled', true)
           .order('created_at', { ascending: false })
-          .limit(1)
 
-        if (!configs?.length) {
-          setMemberLoading(false)
-          return
-        }
+        if (!configs?.length) { setMemberLoading(false); return }
 
-        const cfg = configs[0]
-        const membership = memberships.find(m => m.league_id === cfg.league_id)
-        setLeague(membership?.leagues ?? null)
-        setConfig(cfg)
+        const pairs = configs
+          .map(cfg => ({
+            league: memberships.find(m => m.league_id === cfg.league_id)?.leagues ?? null,
+            config: cfg,
+          }))
+          .filter(p => p.league)
+
+        if (!pairs.length) { setMemberLoading(false); return }
+
+        setAllLeagues(pairs)
+
+        // Restore prior selection from sessionStorage
+        const savedId = sessionStorage.getItem('cfbm_league_id')
+        const saved = pairs.find(p => p.league.id === savedId)
+        const selected = saved ?? pairs[0]
+        setLeague(selected.league)
+        setConfig(selected.config)
         setMemberLoading(false)
       })
       .catch(() => setMemberLoading(false))
   }, [user?.id])
 
+  function selectLeague(leagueId) {
+    const pair = allLeagues.find(p => p.league.id === leagueId)
+    if (!pair) return
+    sessionStorage.setItem('cfbm_league_id', leagueId)
+    setLeague(pair.league)
+    setConfig(pair.config)
+  }
+
   return (
-    <LeagueContext.Provider value={{ league, config, memberLoading, setLeague, setConfig }}>
+    <LeagueContext.Provider value={{ allLeagues, league, config, memberLoading, setLeague, setConfig, selectLeague }}>
       {children}
     </LeagueContext.Provider>
   )
