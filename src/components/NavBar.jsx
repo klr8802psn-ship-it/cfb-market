@@ -39,6 +39,10 @@ export default function NavBar() {
           <span style={{ fontSize: 18 }}>📈</span>
           Market
         </NavLink>
+        <NavLink to="/leaderboard" style={({ isActive }) => linkStyle(isActive)}>
+          <span style={{ fontSize: 18 }}>🏆</span>
+          Board
+        </NavLink>
         {isAdmin && (
           <NavLink to="/admin" style={({ isActive }) => linkStyle(isActive)}>
             <span style={{ fontSize: 18 }}>⚙️</span>

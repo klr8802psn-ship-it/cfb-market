@@ -6,6 +6,7 @@ import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Join from './pages/Join'
 import Market from './pages/Market'
+import Leaderboard from './pages/Leaderboard'
 import Admin from './pages/Admin'
 import AdminLeague from './pages/AdminLeague'
 
@@ -41,6 +42,7 @@ export default function App() {
             <Route path="/" element={<RedirectIfAuthed><Landing /></RedirectIfAuthed>} />
             <Route path="/login" element={<RedirectIfAuthed><Login /></RedirectIfAuthed>} />
             <Route path="/join/:code" element={<Join />} />
+            <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/market" element={<RequireAuth><AuthedLayout><Market /></AuthedLayout></RequireAuth>} />
             <Route path="/admin" element={<RequireAuth><AuthedLayout><Admin /></AuthedLayout></RequireAuth>} />
             <Route path="/admin/league/:id" element={<RequireAuth><AuthedLayout><AdminLeague /></AuthedLayout></RequireAuth>} />
