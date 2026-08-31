@@ -1,7 +1,9 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { LeagueProvider } from './context/LeagueContext'
 import Landing from './pages/Landing'
 import Login from './pages/Login'
+import Join from './pages/Join'
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth()
@@ -20,19 +22,20 @@ function RedirectIfAuthed({ children }) {
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<RedirectIfAuthed><Landing /></RedirectIfAuthed>} />
-          <Route path="/login" element={<RedirectIfAuthed><Login /></RedirectIfAuthed>} />
-          {/* Stubs — filled in by later tasks */}
-          <Route path="/join/:code" element={<div style={{ color: '#fff', padding: 32 }}>Join page — coming soon</div>} />
-          <Route path="/market" element={<RequireAuth><div style={{ color: '#fff', padding: 32 }}>Market — coming soon</div></RequireAuth>} />
-          <Route path="/leaderboard" element={<RequireAuth><div style={{ color: '#fff', padding: 32 }}>Leaderboard — coming soon</div></RequireAuth>} />
-          <Route path="/admin" element={<RequireAuth><div style={{ color: '#fff', padding: 32 }}>Admin — coming soon</div></RequireAuth>} />
-          <Route path="/admin/league/:id" element={<RequireAuth><div style={{ color: '#fff', padding: 32 }}>AdminLeague — coming soon</div></RequireAuth>} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
+      <LeagueProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<RedirectIfAuthed><Landing /></RedirectIfAuthed>} />
+            <Route path="/login" element={<RedirectIfAuthed><Login /></RedirectIfAuthed>} />
+            <Route path="/join/:code" element={<Join />} />
+            <Route path="/market" element={<RequireAuth><div style={{ color: '#fff', padding: 32 }}>Market — coming soon</div></RequireAuth>} />
+            <Route path="/leaderboard" element={<RequireAuth><div style={{ color: '#fff', padding: 32 }}>Leaderboard — coming soon</div></RequireAuth>} />
+            <Route path="/admin" element={<RequireAuth><div style={{ color: '#fff', padding: 32 }}>Admin — coming soon</div></RequireAuth>} />
+            <Route path="/admin/league/:id" element={<RequireAuth><div style={{ color: '#fff', padding: 32 }}>AdminLeague — coming soon</div></RequireAuth>} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </LeagueProvider>
     </AuthProvider>
   )
 }
