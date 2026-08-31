@@ -12,9 +12,10 @@ export default function Login() {
     if (!email.trim()) return
     setBusy(true)
     setErr(null)
+    const nextPath = new URLSearchParams(window.location.search).get('next') ?? '/'
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim().toLowerCase(),
-      options: { emailRedirectTo: `${window.location.origin}/` },
+      options: { emailRedirectTo: `${window.location.origin}${nextPath}` },
     })
     setBusy(false)
     if (error) { setErr(error.message); return }
