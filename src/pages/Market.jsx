@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { useLeague } from '../context/LeagueContext'
 import TeamMark from '../components/TeamMark'
 import PortfolioBar from '../components/PortfolioBar'
+import TradeModal from '../components/TradeModal'
 import { STOCK_START_CASH, holdingsValue, validateBuy, validateSell } from '../lib/stocks'
 
 function fmt(n) {
@@ -100,10 +101,12 @@ export default function Market() {
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState(null)
 
-  // Trade modal state — wired in Task 5
+  // Trade modal state
   const [tradeTeam, setTradeTeam] = useState(null)
   const [tradeSide, setTradeSide] = useState('buy')
   const [tradeSuccess, setTradeSuccess] = useState(null)
+  const [tradeBusy, setTradeBusy] = useState(false)
+  const [tradeError, setTradeError] = useState(null)
 
   useEffect(() => {
     if (!config || !user || !league) { setLoading(false); return }
@@ -142,6 +145,39 @@ export default function Market() {
       setLoading(false)
     }).catch(err => { setLoadErr(err.message); setLoading(false) })
   }, [config?.season_id, user?.id, league?.id])
+
+  function refreshAccount() {
+    if (!config || !user || !league) return
+    const seasonId = config.season_id
+    const startCash = config.start_cash ?? STOCK_START_CASH
+    Promise.all([
+      supabase.from('stock_accounts').select('cash').eq('league_id', league.id).eq('season_id', seasonId).eq('user_id', user.id).maybeSingle(),
+      supabase.from('stock_holdings').select('team_id, shares').eq('league_id', league.id).eq('season_id', seasonId).eq('user_id', user.id),
+    ]).then(([{ data: acct }, { data: myHoldings }]) => {
+      setCash(acct?.cash != null ? Number(acct.cash) : startCash)
+      setHoldings((myHoldings ?? []).filter(h => h.shares > 0))
+    })
+  }
+
+  async function handleTradeConfirm(shares) {
+    if (!tradeTeam || !config || !league) return
+    setTradeBusy(true)
+    setTradeError(null)
+    const { data, error: rpcError } = await supabase.rpc('stock_trade', {
+      p_league_id: league.id,
+      p_season_id: config.season_id,
+      p_team_id: tradeTeam.id,
+      p_side: tradeSide,
+      p_shares: shares,
+    })
+    setTradeBusy(false)
+    if (rpcError) { setTradeError(rpcError.message); return }
+    const result = Array.isArray(data) ? data[0] : data
+    if (!result?.ok) { setTradeError(result?.reason ?? 'Trade failed'); return }
+    setTradeSuccess(`${tradeSide === 'buy' ? 'Bought' : 'Sold'} ${shares} share${shares !== 1 ? 's' : ''} of ${tradeTeam.name}`)
+    setTradeTeam(null)
+    refreshAccount()
+  }
 
   const holdingsVal = useMemo(() => holdingsValue(holdings, priceByTeam), [holdings, priceByTeam])
   const startCash = config?.start_cash ?? STOCK_START_CASH
@@ -183,6 +219,7 @@ export default function Market() {
   function openTrade(team, side) {
     setTradeTeam(team)
     setTradeSide(side)
+    setTradeError(null)
     setTradeSuccess(null)
   }
 
@@ -190,6 +227,7 @@ export default function Market() {
   const TABS = [{ key: 'market', label: 'Market' }, { key: 'portfolio', label: 'My Stocks' }, { key: 'leaderboard', label: 'Leaderboard' }]
 
   return (
+    <>
     <div className="page-container">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
@@ -291,5 +329,20 @@ export default function Market() {
         <p style={{ color: 'var(--muted)', fontSize: 14, textAlign: 'center', padding: 32 }}>Leaderboard coming soon.</p>
       )}
     </div>
+
+    {tradeTeam && (
+      <TradeModal
+        team={tradeTeam}
+        side={tradeSide}
+        cash={cash}
+        holdings={holdings}
+        priceByTeam={priceByTeam}
+        onConfirm={handleTradeConfirm}
+        onCancel={() => { setTradeTeam(null); setTradeError(null) }}
+        busy={tradeBusy}
+        error={tradeError}
+      />
+    )}
+    </>
   )
 }
