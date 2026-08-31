@@ -4,6 +4,7 @@ import { LeagueProvider } from './context/LeagueContext'
 import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Join from './pages/Join'
+import Market from './pages/Market'
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth()
@@ -28,7 +29,7 @@ export default function App() {
             <Route path="/" element={<RedirectIfAuthed><Landing /></RedirectIfAuthed>} />
             <Route path="/login" element={<RedirectIfAuthed><Login /></RedirectIfAuthed>} />
             <Route path="/join/:code" element={<Join />} />
-            <Route path="/market" element={<RequireAuth><div style={{ color: '#fff', padding: 32 }}>Market — coming soon</div></RequireAuth>} />
+            <Route path="/market" element={<RequireAuth><Market /></RequireAuth>} />
             <Route path="/leaderboard" element={<RequireAuth><div style={{ color: '#fff', padding: 32 }}>Leaderboard — coming soon</div></RequireAuth>} />
             <Route path="/admin" element={<RequireAuth><div style={{ color: '#fff', padding: 32 }}>Admin — coming soon</div></RequireAuth>} />
             <Route path="/admin/league/:id" element={<RequireAuth><div style={{ color: '#fff', padding: 32 }}>AdminLeague — coming soon</div></RequireAuth>} />
