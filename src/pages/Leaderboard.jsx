@@ -116,7 +116,9 @@ export default function Leaderboard() {
                       {isMe && <span style={{ fontSize: 10, fontWeight: 900, color: '#F59E0B', flexShrink: 0 }}>You</span>}
                     </div>
                     {row.ob_handle && (
-                      <p style={{ fontSize: 11, color: 'var(--faint)', margin: 0, fontFamily: 'var(--font-mono)' }}>@{row.ob_handle}</p>
+                      <p style={{ fontSize: 11, color: 'var(--faint)', margin: 0, fontFamily: 'var(--font-mono)' }}>
+                        <span style={{ color: '#F59E0B', fontWeight: 700 }}>OB</span> · {row.ob_handle}
+                      </p>
                     )}
                   </div>
 

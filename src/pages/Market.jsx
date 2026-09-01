@@ -215,7 +215,9 @@ function LeaderboardTab({ accounts, allHoldings, priceByTeam, members, currentUs
                 {m.display_name ?? 'Unknown'}{isMe && <span style={{ color: '#F59E0B', marginLeft: 6, fontSize: 10, fontWeight: 900 }}>You</span>}
               </p>
               {m.ob_handle && (
-                <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--faint)', margin: 0 }}>@{m.ob_handle}</p>
+                <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--faint)', margin: 0 }}>
+                  <span style={{ color: '#F59E0B', fontWeight: 700 }}>OB</span> · {m.ob_handle}
+                </p>
               )}
             </div>
             <div style={{ textAlign: 'right' }}>
