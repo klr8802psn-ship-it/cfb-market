@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import { STOCK_START_CASH } from '../lib/stocks'
 
 export default function Join() {
   const { code } = useParams()
@@ -25,45 +24,14 @@ export default function Join() {
 
   async function join() {
     setStatus('joining')
-    // 1. Find the league by invite_code
-    const { data: league, error: leagueErr } = await supabase
-      .from('leagues')
-      .select('id')
-      .eq('invite_code', code)
-      .maybeSingle()
 
-    if (leagueErr || !league) {
+    const { error } = await supabase.rpc('join_stock_league_by_invite_code', { p_code: code })
+
+    if (error) {
       setError('Invalid invite link. Ask your commissioner for the correct URL.')
       setStatus('error')
       return
     }
-
-    // 2. Get the active stock_config for this league
-    const { data: cfg, error: cfgErr } = await supabase
-      .from('stock_config')
-      .select('season_id, start_cash, enabled')
-      .eq('league_id', league.id)
-      .eq('enabled', true)
-      .maybeSingle()
-
-    if (cfgErr || !cfg) {
-      setError("This league doesn't have an active stock season yet.")
-      setStatus('error')
-      return
-    }
-
-    // 3. Insert into league_members (ignore conflict — already a member)
-    await supabase
-      .from('league_members')
-      .upsert({ league_id: league.id, user_id: user.id, role: 'member' }, { onConflict: 'league_id,user_id' })
-
-    // 4. Seed stock_accounts (ignore conflict — account already exists)
-    await supabase
-      .from('stock_accounts')
-      .upsert(
-        { league_id: league.id, season_id: cfg.season_id, user_id: user.id, cash: cfg.start_cash ?? STOCK_START_CASH },
-        { onConflict: 'league_id,season_id,user_id' }
-      )
 
     navigate('/market', { replace: true })
   }

@@ -14,9 +14,7 @@ function Section({ title, children }) {
 
 export default function AdminLeague() {
   const { id: leagueId } = useParams()
-  const { user } = useAuth()
-  const isAdmin = user?.user_metadata?.is_admin_platform === true
-  if (!isAdmin) return <Navigate to="/market" replace />
+  const { isPlatformAdmin, profileLoading } = useAuth()
 
   const [cfg, setCfg] = useState(null)
   const [league, setLeague] = useState(null)
@@ -31,6 +29,7 @@ export default function AdminLeague() {
   const [kickoffResult, setKickoffResult] = useState(null)
 
   useEffect(() => {
+    if (!isPlatformAdmin) return
     Promise.all([
       supabase.from('stock_config').select('season_id, start_cash, trading_open, enabled, is_public').eq('league_id', leagueId).eq('enabled', true).maybeSingle(),
       supabase.from('leagues').select('id, name, invite_code').eq('id', leagueId).maybeSingle(),
@@ -43,7 +42,10 @@ export default function AdminLeague() {
       setAccounts(acctData ?? [])
       setLoading(false)
     })
-  }, [leagueId])
+  }, [isPlatformAdmin, leagueId])
+
+  if (profileLoading) return <div style={{ padding: 32, color: 'var(--muted)' }}>Loading…</div>
+  if (!isPlatformAdmin) return <Navigate to="/market" replace />
 
   async function togglePublic() {
     if (!cfg) return
@@ -75,7 +77,8 @@ export default function AdminLeague() {
         body: JSON.stringify({ season_id: cfg.season_id, league_id: leagueId }),
       })
       const json = await res.json()
-      setSettleResult(json.updated != null ? `Updated ${json.updated} team prices.` : JSON.stringify(json))
+      if (json.error) setSettleResult(`Error: ${json.error}`)
+      else setSettleResult(json.settled != null ? `Updated ${json.settled} team prices.` : JSON.stringify(json))
     } catch (e) {
       setSettleResult(`Error: ${e.message}`)
     }

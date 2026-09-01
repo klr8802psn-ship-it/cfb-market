@@ -3,9 +3,8 @@ import { useAuth } from '../context/AuthContext'
 import { useLeague } from '../context/LeagueContext'
 
 export default function NavBar() {
-  const { user } = useAuth()
+  const { isPlatformAdmin } = useAuth()
   const { allLeagues, league, selectLeague } = useLeague()
-  const isAdmin = user?.user_metadata?.is_admin_platform === true
   const multiLeague = allLeagues.length > 1
 
   const linkStyle = (isActive) => ({
@@ -46,7 +45,7 @@ export default function NavBar() {
           <span style={{ fontSize: 18 }}>🏆</span>
           Board
         </NavLink>
-        {isAdmin && (
+        {isPlatformAdmin && (
           <NavLink to="/admin" style={({ isActive }) => linkStyle(isActive)}>
             <span style={{ fontSize: 18 }}>⚙️</span>
             Admin

@@ -108,15 +108,13 @@ function CreateLeagueForm({ onCreated }) {
 }
 
 export default function Admin() {
-  const { user } = useAuth()
+  const { isPlatformAdmin, profileLoading } = useAuth()
   const [leagues, setLeagues] = useState([])
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
 
-  const isAdmin = user?.user_metadata?.is_admin_platform === true
-  if (!isAdmin) return <Navigate to="/market" replace />
-
   function loadLeagues() {
+    if (!isPlatformAdmin) return
     setLoading(true)
     supabase
       .from('stock_config')
@@ -126,7 +124,10 @@ export default function Admin() {
       .then(({ data }) => { setLeagues(data ?? []); setLoading(false) })
   }
 
-  useEffect(() => { loadLeagues() }, [])
+  useEffect(() => { loadLeagues() }, [isPlatformAdmin])
+
+  if (profileLoading) return <div style={{ color: 'var(--muted)', padding: 32 }}>Loading…</div>
+  if (!isPlatformAdmin) return <Navigate to="/market" replace />
 
   return (
     <div className="page-container" style={{ paddingTop: 24, paddingBottom: 100 }}>

@@ -108,9 +108,6 @@ export default function Leaderboard() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {board.map((row, idx) => {
               const isMe = user && row.user_id === user.id
-              const pl = Number(row.total_value) - Number(row.cash) - Number(row.holdings_value) + Number(row.holdings_value)
-              const startVal = board.reduce((min, r) => Math.min(min, Number(r.total_value)), Number(board[0]?.total_value ?? 0))
-              const gainLoss = Number(row.total_value) - (Number(row.cash) + Number(row.holdings_value) - Number(row.holdings_value))
               return (
                 <div key={row.user_id ?? idx} className="card" style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12, ...(isMe ? { borderColor: 'rgba(245,158,11,0.4)', background: 'rgba(245,158,11,0.04)' } : {}) }}>
                   <div style={{ width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-mono)', fontWeight: 900, fontSize: idx < 3 ? 18 : 12, flexShrink: 0, background: idx === 0 ? 'rgba(245,158,11,0.15)' : 'rgba(255,255,255,0.05)', color: idx === 0 ? '#F59E0B' : '#94a3b8', border: idx === 0 ? '1px solid rgba(245,158,11,0.3)' : '1px solid rgba(255,255,255,0.06)' }}>
