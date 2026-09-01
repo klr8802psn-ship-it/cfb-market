@@ -260,6 +260,10 @@ export default function Market() {
   // Price chart modal
   const [chartTeam, setChartTeam] = useState(null)
 
+  // Profile edit modal + dropdown
+  const [editingProfile, setEditingProfile] = useState(false)
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false)
+
   // Fetch profile separately (fast, needed for setup check)
   useEffect(() => {
     if (!user) return
@@ -399,9 +403,9 @@ export default function Market() {
 
   return (
     <>
-    {/* Profile setup — shown once on first login */}
-    {profileLoaded && !profile?.display_name && (
-      <ProfileSetup onComplete={p => setProfile(p)} />
+    {/* Profile setup — shown once on first login, or when editing */}
+    {profileLoaded && (!profile?.display_name || editingProfile) && (
+      <ProfileSetup initial={profile} onComplete={p => { setProfile(p); setEditingProfile(false) }} onDismiss={profile?.display_name ? () => setEditingProfile(false) : null} />
     )}
 
     {/* Price chart modal */}
@@ -418,6 +422,28 @@ export default function Market() {
         <div>
           <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 24, color: '#fff', margin: 0 }}>CFB Market</h1>
           <p style={{ color: 'var(--faint)', fontSize: 12, margin: 0 }}>{league.name}</p>
+        </div>
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={() => setProfileMenuOpen(v => !v)}
+            style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 8, padding: '6px 12px', color: 'var(--muted)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+          >
+            {profile?.display_name ?? 'Profile'} ▾
+          </button>
+          {profileMenuOpen && (
+            <>
+              <div onClick={() => setProfileMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 49 }} />
+              <div style={{ position: 'absolute', right: 0, top: '110%', background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 10, overflow: 'hidden', minWidth: 140, zIndex: 50, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
+                <button onClick={() => { setEditingProfile(true); setProfileMenuOpen(false) }} style={{ display: 'block', width: '100%', padding: '12px 16px', background: 'none', border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}>
+                  Edit Profile
+                </button>
+                <div style={{ height: 1, background: 'var(--line)' }} />
+                <button onClick={() => supabase.auth.signOut()} style={{ display: 'block', width: '100%', padding: '12px 16px', background: 'none', border: 'none', color: '#f87171', fontSize: 13, fontWeight: 700, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}>
+                  Sign Out
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
 

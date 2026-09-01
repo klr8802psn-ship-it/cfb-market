@@ -2,10 +2,10 @@ import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
-export default function ProfileSetup({ onComplete }) {
+export default function ProfileSetup({ onComplete, onDismiss, initial }) {
   const { user } = useAuth()
-  const [displayName, setDisplayName] = useState('')
-  const [obHandle, setObHandle] = useState('')
+  const [displayName, setDisplayName] = useState(initial?.display_name ?? '')
+  const [obHandle, setObHandle] = useState(initial?.ob_handle ?? '')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
 
@@ -37,12 +37,17 @@ export default function ProfileSetup({ onComplete }) {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div className="card" style={{ width: '100%', maxWidth: 400, padding: 28 }}>
-        <p style={{ fontSize: 28, margin: '0 0 4px', textAlign: 'center' }}>👋</p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+          <p style={{ fontSize: 28, margin: 0 }}>{onDismiss ? '👤' : '👋'}</p>
+          {onDismiss && (
+            <button onClick={onDismiss} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 20, cursor: 'pointer', padding: 0, lineHeight: 1 }}>✕</button>
+          )}
+        </div>
         <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 22, color: '#fff', textAlign: 'center', margin: '0 0 6px' }}>
-          Welcome to CFB Market
+          {onDismiss ? 'Edit Profile' : 'Welcome to CFB Market'}
         </h2>
         <p style={{ color: 'var(--muted)', fontSize: 14, textAlign: 'center', margin: '0 0 24px', lineHeight: 1.5 }}>
-          Set your name so the leaderboard knows who you are.
+          {onDismiss ? 'Update your display name and OB handle.' : 'Set your name so the leaderboard knows who you are.'}
         </p>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
