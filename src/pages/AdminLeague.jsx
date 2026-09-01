@@ -32,7 +32,7 @@ export default function AdminLeague() {
 
   useEffect(() => {
     Promise.all([
-      supabase.from('stock_config').select('season_id, start_cash, trading_open, enabled').eq('league_id', leagueId).eq('enabled', true).maybeSingle(),
+      supabase.from('stock_config').select('season_id, start_cash, trading_open, enabled, is_public').eq('league_id', leagueId).eq('enabled', true).maybeSingle(),
       supabase.from('leagues').select('id, name, invite_code').eq('id', leagueId).maybeSingle(),
       supabase.from('league_members').select('user_id, role, user:users(display_name, email)').eq('league_id', leagueId),
       supabase.from('stock_accounts').select('user_id, cash').eq('league_id', leagueId),
@@ -44,6 +44,15 @@ export default function AdminLeague() {
       setLoading(false)
     })
   }, [leagueId])
+
+  async function togglePublic() {
+    if (!cfg) return
+    setToggleBusy(true)
+    const newVal = !cfg.is_public
+    await supabase.from('stock_config').update({ is_public: newVal }).eq('league_id', leagueId)
+    setCfg(prev => ({ ...prev, is_public: newVal }))
+    setToggleBusy(false)
+  }
 
   async function toggleTrading() {
     if (!cfg) return
@@ -167,6 +176,22 @@ export default function AdminLeague() {
           </div>
           <button onClick={toggleTrading} disabled={toggleBusy} className="btn" style={{ padding: '8px 16px', background: cfg?.trading_open ? 'rgba(255,107,122,0.12)' : 'rgba(56,217,130,0.12)', color: cfg?.trading_open ? '#ff6b7a' : '#38D982', border: `1px solid ${cfg?.trading_open ? 'rgba(255,107,122,0.3)' : 'rgba(56,217,130,0.3)'}`, fontSize: 12 }}>
             {cfg?.trading_open ? 'Close' : 'Open'}
+          </button>
+        </div>
+      </Section>
+
+      <Section title="Public Leaderboard">
+        <div className="card" style={{ padding: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <p style={{ fontWeight: 700, color: '#fff', fontSize: 14, margin: 0 }}>
+              {cfg?.is_public ? 'Visible to anyone' : 'Private league'}
+            </p>
+            <p style={{ color: 'var(--muted)', fontSize: 12, margin: 0 }}>
+              {cfg?.is_public ? 'Shows on the public leaderboard page.' : 'Hidden from the public leaderboard.'}
+            </p>
+          </div>
+          <button onClick={togglePublic} disabled={toggleBusy} className="btn" style={{ padding: '8px 16px', background: cfg?.is_public ? 'rgba(255,107,122,0.12)' : 'rgba(56,217,130,0.12)', color: cfg?.is_public ? '#ff6b7a' : '#38D982', border: `1px solid ${cfg?.is_public ? 'rgba(255,107,122,0.3)' : 'rgba(56,217,130,0.3)'}`, fontSize: 12 }}>
+            {cfg?.is_public ? 'Make Private' : 'Make Public'}
           </button>
         </div>
       </Section>
