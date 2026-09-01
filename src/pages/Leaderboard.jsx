@@ -66,13 +66,22 @@ export default function Leaderboard() {
       <div style={{ maxWidth: 480, margin: '0 auto', padding: '20px 16px' }}>
         {/* League selector */}
         {leagues.length > 1 && (
-          <select
-            value={selectedId ?? ''}
-            onChange={e => handleLeagueChange(e.target.value)}
-            style={{ width: '100%', background: 'var(--surface)', color: '#fff', border: '1px solid var(--line)', borderRadius: 10, fontSize: 14, fontWeight: 700, padding: '10px 14px', fontFamily: 'inherit', marginBottom: 16, cursor: 'pointer' }}
-          >
-            {leagues.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-          </select>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+            {leagues.map(l => (
+              <button
+                key={l.id}
+                onClick={() => handleLeagueChange(l.id)}
+                style={{
+                  flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid var(--line)',
+                  cursor: 'pointer', fontSize: 14, fontWeight: 700, fontFamily: 'inherit', transition: 'all 0.15s',
+                  background: selectedId === l.id ? '#F59E0B' : 'var(--surface)',
+                  color: selectedId === l.id ? '#000' : '#fff',
+                }}
+              >
+                {l.name}
+              </button>
+            ))}
+          </div>
         )}
 
         {leagues.length === 1 && (

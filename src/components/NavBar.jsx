@@ -17,21 +17,24 @@ export default function NavBar() {
   return (
     <nav style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'var(--surface)', borderTop: '1px solid var(--line)', zIndex: 40, paddingBottom: 'env(safe-area-inset-bottom)' }}>
       {multiLeague && (
-        <div style={{ borderBottom: '1px solid var(--line)', padding: '6px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ borderBottom: '1px solid var(--line)', padding: '6px 16px', display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontSize: 11, color: 'var(--faint)', flexShrink: 0 }}>League</span>
-          <select
-            value={league?.id ?? ''}
-            onChange={e => selectLeague(e.target.value)}
-            style={{
-              flex: 1, background: 'var(--bg)', color: '#fff', border: '1px solid var(--line)',
-              borderRadius: 6, fontSize: 12, fontWeight: 700, padding: '3px 8px',
-              fontFamily: 'inherit', cursor: 'pointer',
-            }}
-          >
+          <div style={{ display: 'flex', gap: 6, flex: 1 }}>
             {allLeagues.map(({ league: l }) => (
-              <option key={l.id} value={l.id}>{l.name}</option>
+              <button
+                key={l.id}
+                onClick={() => selectLeague(l.id)}
+                style={{
+                  flex: 1, padding: '4px 8px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                  fontSize: 12, fontWeight: 700, fontFamily: 'inherit', transition: 'all 0.15s',
+                  background: league?.id === l.id ? '#F59E0B' : 'var(--bg)',
+                  color: league?.id === l.id ? '#000' : 'var(--muted)',
+                }}
+              >
+                {l.name}
+              </button>
             ))}
-          </select>
+          </div>
         </div>
       )}
       <div style={{ display: 'flex', justifyContent: 'center', gap: 8 }}>
