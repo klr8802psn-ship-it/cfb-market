@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useLeague } from '../context/LeagueContext'
+import { supabase } from '../lib/supabase'
 
 export default function NavBar() {
   const { user } = useAuth()
@@ -49,6 +50,13 @@ export default function NavBar() {
             Admin
           </NavLink>
         )}
+        <button
+          onClick={() => supabase.auth.signOut()}
+          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 700, padding: '8px 16px', color: 'var(--muted)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+        >
+          <span style={{ fontSize: 18 }}>🚪</span>
+          Sign Out
+        </button>
       </div>
     </nav>
   )
