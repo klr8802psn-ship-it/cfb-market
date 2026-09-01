@@ -24,11 +24,21 @@ function RedirectIfAuthed({ children }) {
   return children
 }
 
-function AuthedLayout({ children }) {
+function AppShell() {
+  const { user } = useAuth()
   return (
     <>
-      {children}
-      <NavBar />
+      <Routes>
+        <Route path="/" element={<RedirectIfAuthed><Landing /></RedirectIfAuthed>} />
+        <Route path="/login" element={<RedirectIfAuthed><Login /></RedirectIfAuthed>} />
+        <Route path="/join/:code" element={<Join />} />
+        <Route path="/leaderboard" element={<Leaderboard />} />
+        <Route path="/market" element={<RequireAuth><Market /></RequireAuth>} />
+        <Route path="/admin" element={<RequireAuth><Admin /></RequireAuth>} />
+        <Route path="/admin/league/:id" element={<RequireAuth><AdminLeague /></RequireAuth>} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+      {user && <NavBar />}
     </>
   )
 }
@@ -38,16 +48,7 @@ export default function App() {
     <AuthProvider>
       <LeagueProvider>
         <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<RedirectIfAuthed><Landing /></RedirectIfAuthed>} />
-            <Route path="/login" element={<RedirectIfAuthed><Login /></RedirectIfAuthed>} />
-            <Route path="/join/:code" element={<Join />} />
-            <Route path="/leaderboard" element={<Leaderboard />} />
-            <Route path="/market" element={<RequireAuth><AuthedLayout><Market /></AuthedLayout></RequireAuth>} />
-            <Route path="/admin" element={<RequireAuth><AuthedLayout><Admin /></AuthedLayout></RequireAuth>} />
-            <Route path="/admin/league/:id" element={<RequireAuth><AuthedLayout><AdminLeague /></AuthedLayout></RequireAuth>} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+          <AppShell />
         </BrowserRouter>
       </LeagueProvider>
     </AuthProvider>
