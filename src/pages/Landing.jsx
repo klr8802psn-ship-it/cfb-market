@@ -2,8 +2,9 @@ import { Link } from 'react-router-dom'
 
 export default function Landing() {
   return (
-    <div className="page-container">
-      <div style={{ paddingTop: 48, paddingBottom: 32 }}>
+    <div className="landing-container">
+      <div className="landing-grid">
+      <div className="landing-hero">
         <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.15em', color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 12 }}>
           CFB Season 2026
         </p>
@@ -19,7 +20,7 @@ export default function Landing() {
         </Link>
       </div>
 
-      <div style={{ borderTop: '1px solid var(--line)', paddingTop: 32 }}>
+      <div className="landing-how card">
         <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.12em', color: 'var(--faint)', textTransform: 'uppercase', marginBottom: 20 }}>
           How it works
         </p>
@@ -38,8 +39,9 @@ export default function Landing() {
           </div>
         ))}
       </div>
+      </div>
 
-      <p style={{ fontSize: 12, color: 'var(--faint)', textAlign: 'center', paddingTop: 16, paddingBottom: 32 }}>
+      <p style={{ fontSize: 12, color: 'var(--faint)', textAlign: 'center', paddingTop: 24, paddingBottom: 32 }}>
         CFB Market uses virtual play money. No real money is wagered or won.
       </p>
     </div>

@@ -13,8 +13,6 @@ export default function Join() {
   useEffect(() => {
     if (authLoading) return
     if (!user) {
-      // Not signed in — save code and redirect to login
-      sessionStorage.setItem('joinCode', code)
       navigate(`/login?next=/join/${code}`)
       return
     }
@@ -33,7 +31,8 @@ export default function Join() {
       return
     }
 
-    navigate('/market', { replace: true })
+    // Reload so LeagueContext fetches the newly-created membership.
+    window.location.replace('/market')
   }
 
   if (status === 'error') {

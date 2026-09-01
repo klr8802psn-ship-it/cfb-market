@@ -10,6 +10,7 @@ export function LeagueProvider({ children }) {
   const [league, setLeague] = useState(null)
   const [config, setConfig] = useState(null)
   const [memberLoading, setMemberLoading] = useState(true)
+  const [memberError, setMemberError] = useState(null)
 
   useEffect(() => {
     if (!user) {
@@ -17,24 +18,28 @@ export function LeagueProvider({ children }) {
       setLeague(null)
       setConfig(null)
       setMemberLoading(false)
+      setMemberError(null)
       return
     }
     setMemberLoading(true)
+    setMemberError(null)
 
     supabase
       .from('league_members')
       .select('league_id, leagues(id, name, invite_code)')
       .eq('user_id', user.id)
-      .then(async ({ data: memberships }) => {
+      .then(async ({ data: memberships, error: membershipsError }) => {
+        if (membershipsError) throw membershipsError
         if (!memberships?.length) { setMemberLoading(false); return }
 
         const leagueIds = memberships.map(m => m.league_id)
-        const { data: configs } = await supabase
+        const { data: configs, error: configsError } = await supabase
           .from('stock_config')
           .select('league_id, season_id, start_cash, trading_open, enabled')
           .in('league_id', leagueIds)
           .eq('enabled', true)
           .order('created_at', { ascending: false })
+        if (configsError) throw configsError
 
         if (!configs?.length) { setMemberLoading(false); return }
 
@@ -57,7 +62,10 @@ export function LeagueProvider({ children }) {
         setConfig(selected.config)
         setMemberLoading(false)
       })
-      .catch(() => setMemberLoading(false))
+      .catch(() => {
+        setMemberError('We could not load your leagues. Check your connection and try again.')
+        setMemberLoading(false)
+      })
   }, [user?.id])
 
   function selectLeague(leagueId) {
@@ -69,7 +77,7 @@ export function LeagueProvider({ children }) {
   }
 
   return (
-    <LeagueContext.Provider value={{ allLeagues, league, config, memberLoading, setLeague, setConfig, selectLeague }}>
+    <LeagueContext.Provider value={{ allLeagues, league, config, memberLoading, memberError, setLeague, setConfig, selectLeague }}>
       {children}
     </LeagueContext.Provider>
   )

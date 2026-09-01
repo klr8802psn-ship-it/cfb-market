@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 const inputStyle = {
@@ -9,6 +10,8 @@ const inputStyle = {
 }
 
 export default function Login() {
+  const location = useLocation()
+  const navigate = useNavigate()
   const [tab, setTab] = useState('signin') // 'signin' | 'signup' | 'forgot'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -17,7 +20,8 @@ export default function Login() {
   const [err, setErr] = useState(null)
   const [notice, setNotice] = useState(null)
 
-  const nextPath = new URLSearchParams(window.location.search).get('next') ?? '/market'
+  const requestedPath = new URLSearchParams(location.search).get('next')
+  const nextPath = requestedPath?.startsWith('/') && !requestedPath.startsWith('//') ? requestedPath : '/market'
 
   function switchTab(t) { setTab(t); setErr(null); setNotice(null) }
 
@@ -57,23 +61,26 @@ export default function Login() {
       password,
     })
     setBusy(false)
-    if (error) { setErr(error.message) }
-    // on success AuthContext detects the session and RedirectIfAuthed sends to /market
+    if (error) { setErr(error.message); return }
+    navigate(nextPath, { replace: true })
   }
 
   return (
     <div className="page-container" style={{ maxWidth: 380, paddingTop: 60 }}>
-      <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--faint)', textTransform: 'uppercase', letterSpacing: '0.12em', margin: '0 0 4px' }}>CFB Market</p>
+      <Link to="/" style={{ display: 'inline-block', fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.12em', margin: '0 0 4px', textDecoration: 'none' }}>← CFB Market</Link>
       <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 28, color: '#fff', marginBottom: 28 }}>
         {tab === 'forgot' ? 'Reset password' : 'Sign in'}
       </h1>
 
       {/* Sign in / Sign up tabs */}
       {tab !== 'forgot' && (
-        <div style={{ display: 'flex', background: 'var(--surface)', borderRadius: 10, border: '1px solid var(--line)', padding: 3, marginBottom: 20 }}>
+        <div role="tablist" aria-label="Account action" style={{ display: 'flex', background: 'var(--surface)', borderRadius: 10, border: '1px solid var(--line)', padding: 3, marginBottom: 20 }}>
           {['signin', 'signup'].map(t => (
             <button
               key={t}
+              type="button"
+              role="tab"
+              aria-selected={tab === t}
               onClick={() => switchTab(t)}
               style={{
                 flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', cursor: 'pointer',
@@ -95,35 +102,23 @@ export default function Login() {
       )}
 
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <input
-          type="email"
-          value={email}
-          onChange={e => setEmail(e.target.value)}
-          placeholder="Email address"
-          required
-          style={inputStyle}
-        />
+        <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)' }}>
+          Email address
+          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" required autoComplete="email" style={{ ...inputStyle, marginTop: 6 }} />
+        </label>
 
         {tab !== 'forgot' && (
-          <input
-            type="password"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            placeholder="Password"
-            required
-            style={inputStyle}
-          />
+          <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)' }}>
+            Password
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" required autoComplete={tab === 'signup' ? 'new-password' : 'current-password'} style={{ ...inputStyle, marginTop: 6 }} />
+          </label>
         )}
 
         {tab === 'signup' && (
-          <input
-            type="password"
-            value={confirm}
-            onChange={e => setConfirm(e.target.value)}
-            placeholder="Confirm password"
-            required
-            style={inputStyle}
-          />
+          <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)' }}>
+            Confirm password
+            <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="Confirm password" required autoComplete="new-password" style={{ ...inputStyle, marginTop: 6 }} />
+          </label>
         )}
 
         {err && <p style={{ fontSize: 13, color: '#f87171', margin: 0 }}>{err}</p>}
@@ -136,7 +131,7 @@ export default function Login() {
           <button
             type="button"
             onClick={() => switchTab('forgot')}
-            style={{ background: 'none', border: 'none', color: 'var(--faint)', fontSize: 13, cursor: 'pointer', padding: 0, textAlign: 'center', fontFamily: 'inherit' }}
+            style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 13, cursor: 'pointer', padding: '10px 8px', textAlign: 'center', fontFamily: 'inherit', minHeight: 44 }}
           >
             Forgot password?
           </button>
@@ -146,7 +141,7 @@ export default function Login() {
           <button
             type="button"
             onClick={() => switchTab('signin')}
-            style={{ background: 'none', border: 'none', color: 'var(--faint)', fontSize: 13, cursor: 'pointer', padding: 0, textAlign: 'center', fontFamily: 'inherit' }}
+            style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 13, cursor: 'pointer', padding: '10px 8px', textAlign: 'center', fontFamily: 'inherit', minHeight: 44 }}
           >
             ← Back to sign in
           </button>

@@ -17,9 +17,17 @@ export default function Leaderboard() {
   const [leagueName, setLeagueName] = useState('')
   const [loading, setLoading] = useState(true)
   const [lastUpdated, setLastUpdated] = useState(null)
+  const [error, setError] = useState(null)
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
-    supabase.rpc('get_public_stock_leagues').then(({ data }) => {
+    setError(null)
+    supabase.rpc('get_public_stock_leagues').then(({ data, error: leagueError }) => {
+      if (leagueError) {
+        setError('We could not load the public leagues. Check your connection and try again.')
+        setLoading(false)
+        return
+      }
       const list = data ?? []
       setLeagues(list)
       if (!list.length) { setLoading(false); return }
@@ -28,17 +36,23 @@ export default function Leaderboard() {
       setSelectedId(pick.id)
       setLeagueName(pick.name)
     })
-  }, [])
+  }, [leagueParam, reloadKey])
 
   useEffect(() => {
     if (!selectedId) return
     setLoading(true)
-    supabase.rpc('get_stock_leaderboard', { p_league_id: selectedId }).then(({ data }) => {
+    setError(null)
+    supabase.rpc('get_stock_leaderboard', { p_league_id: selectedId }).then(({ data, error: boardError }) => {
+      if (boardError) {
+        setError('We could not load these standings. Check your connection and try again.')
+        setLoading(false)
+        return
+      }
       setBoard(data ?? [])
       setLastUpdated(new Date())
       setLoading(false)
     })
-  }, [selectedId])
+  }, [selectedId, reloadKey])
 
   function handleLeagueChange(id) {
     const l = leagues.find(x => x.id === id)
@@ -66,22 +80,12 @@ export default function Leaderboard() {
       <div style={{ maxWidth: 480, margin: '0 auto', padding: '20px 16px' }}>
         {/* League selector */}
         {leagues.length > 1 && (
-          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-            {leagues.map(l => (
-              <button
-                key={l.id}
-                onClick={() => handleLeagueChange(l.id)}
-                style={{
-                  flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid var(--line)',
-                  cursor: 'pointer', fontSize: 14, fontWeight: 700, fontFamily: 'inherit', transition: 'all 0.15s',
-                  background: selectedId === l.id ? '#F59E0B' : 'var(--surface)',
-                  color: selectedId === l.id ? '#000' : '#fff',
-                }}
-              >
-                {l.name}
-              </button>
-            ))}
-          </div>
+          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 16 }}>
+            League
+            <select value={selectedId ?? ''} onChange={e => handleLeagueChange(e.target.value)} style={{ display: 'block', width: '100%', marginTop: 6, padding: '11px 14px', borderRadius: 10, border: '1px solid var(--line-2)', background: 'var(--surface)', color: '#fff', fontSize: 14, fontWeight: 700, fontFamily: 'inherit' }}>
+              {leagues.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+            </select>
+          </label>
         )}
 
         {leagues.length === 1 && (
@@ -94,7 +98,13 @@ export default function Leaderboard() {
           </p>
         )}
 
-        {loading ? (
+        {error ? (
+          <div className="card" style={{ padding: 32, textAlign: 'center' }}>
+            <p style={{ fontSize: 28, margin: '0 0 12px' }}>⚠️</p>
+            <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 16 }}>{error}</p>
+            <button className="btn btn--accent" onClick={() => setReloadKey(key => key + 1)}>Try again</button>
+          </div>
+        ) : loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
             <div style={{ width: 24, height: 24, borderRadius: '50%', border: '2px solid rgba(245,158,11,0.5)', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>

@@ -1,10 +1,11 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useLeague } from '../context/LeagueContext'
 
 export default function NavBar() {
   const { isPlatformAdmin } = useAuth()
   const { allLeagues, league, selectLeague } = useLeague()
+  const location = useLocation()
   const multiLeague = allLeagues.length > 1
 
   const linkStyle = (isActive) => ({
@@ -18,30 +19,17 @@ export default function NavBar() {
       {multiLeague && (
         <div style={{ borderBottom: '1px solid var(--line)', padding: '6px 16px', display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontSize: 11, color: 'var(--faint)', flexShrink: 0 }}>League</span>
-          <div style={{ display: 'flex', gap: 6, flex: 1 }}>
-            {allLeagues.map(({ league: l }) => (
-              <button
-                key={l.id}
-                onClick={() => selectLeague(l.id)}
-                style={{
-                  flex: 1, padding: '4px 8px', borderRadius: 6, border: 'none', cursor: 'pointer',
-                  fontSize: 12, fontWeight: 700, fontFamily: 'inherit', transition: 'all 0.15s',
-                  background: league?.id === l.id ? '#F59E0B' : 'var(--bg)',
-                  color: league?.id === l.id ? '#000' : 'var(--muted)',
-                }}
-              >
-                {l.name}
-              </button>
-            ))}
-          </div>
+          <select aria-label="Active league" value={league?.id ?? ''} onChange={e => selectLeague(e.target.value)} style={{ flex: 1, minWidth: 0, padding: '6px 30px 6px 10px', borderRadius: 7, border: '1px solid var(--line-2)', background: 'var(--bg)', color: '#fff', fontSize: 12, fontWeight: 700, fontFamily: 'inherit' }}>
+            {allLeagues.map(({ league: l }) => <option key={l.id} value={l.id}>{l.name}</option>)}
+          </select>
         </div>
       )}
       <div style={{ display: 'flex', justifyContent: 'center', gap: 8 }}>
-        <NavLink to="/market" style={({ isActive }) => linkStyle(isActive)}>
+        <NavLink to="/market" style={() => linkStyle(location.pathname === '/market' && !location.search.includes('tab=leaderboard'))}>
           <span style={{ fontSize: 18 }}>📈</span>
           Market
         </NavLink>
-        <NavLink to="/leaderboard" style={({ isActive }) => linkStyle(isActive)}>
+        <NavLink to="/market?tab=leaderboard" style={() => linkStyle(location.pathname === '/market' && location.search.includes('tab=leaderboard'))}>
           <span style={{ fontSize: 18 }}>🏆</span>
           Board
         </NavLink>

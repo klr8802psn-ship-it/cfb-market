@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { LeagueProvider } from './context/LeagueContext'
 import NavBar from './components/NavBar'
@@ -19,8 +19,11 @@ function RequireAuth({ children }) {
 
 function RedirectIfAuthed({ children }) {
   const { user, loading } = useAuth()
+  const location = useLocation()
   if (loading) return null
-  if (user) return <Navigate to="/market" replace />
+  const requestedPath = new URLSearchParams(location.search).get('next')
+  const safeNextPath = requestedPath?.startsWith('/') && !requestedPath.startsWith('//') ? requestedPath : '/market'
+  if (user) return <Navigate to={safeNextPath} replace />
   return children
 }
 

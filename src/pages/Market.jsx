@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useLeague } from '../context/LeagueContext'
@@ -143,8 +144,7 @@ function MarketRow({ team, price, prevPrice, history, holdings, cash, priceByTea
   const canSell = tradingOpen && held > 0
 
   return (
-    <div className="card" style={{ padding: 12, display: 'flex', alignItems: 'center', gap: 12, minHeight: 60, cursor: hasPrice ? 'pointer' : 'default' }}
-      onClick={() => hasPrice && onChart(team)}>
+    <div className="card" style={{ padding: 12, display: 'flex', alignItems: 'center', gap: 12, minHeight: 60 }}>
       <TeamMark color={team.primary_color} abbr={team.abbreviation} size="md" />
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ fontWeight: 700, color: '#fff', fontSize: 14, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{team.name}</p>
@@ -161,13 +161,15 @@ function MarketRow({ team, price, prevPrice, history, holdings, cash, priceByTea
           )}
         </div>
       </div>
-      <div onClick={e => e.stopPropagation()}>
-        <Sparkline prices={history} />
-      </div>
+      {hasPrice && (
+        <button type="button" onClick={() => onChart(team)} aria-label={`View ${team.name} price chart`} style={{ display: 'flex', alignItems: 'center', minWidth: 44, minHeight: 44, padding: 0, border: 'none', background: 'transparent', cursor: 'pointer' }}>
+          <Sparkline prices={history} />
+        </button>
+      )}
       <div style={{ textAlign: 'right', flexShrink: 0, minWidth: 52 }}>
         <p style={{ fontFamily: 'var(--font-mono)', fontWeight: 900, fontSize: 14, color: '#fff', margin: 0 }}>{hasPrice ? fmtPrice(price) : '—'}</p>
       </div>
-      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
         <button type="button" onClick={() => hasPrice && onTrade(team, 'buy')} disabled={!canBuy}
           style={{ fontSize: 11, fontWeight: 900, padding: '6px 10px', borderRadius: 8, background: canBuy ? 'rgba(56,217,130,0.12)' : 'rgba(255,255,255,0.04)', color: canBuy ? '#38D982' : '#475569', border: `1px solid ${canBuy ? 'rgba(56,217,130,0.3)' : 'rgba(255,255,255,0.06)'}`, cursor: canBuy ? 'pointer' : 'not-allowed' }}>
           Buy
@@ -233,9 +235,13 @@ function LeaderboardTab({ accounts, allHoldings, priceByTeam, members, currentUs
 
 // ── Main Market page ──────────────────────────────────────────────────────────
 export default function Market() {
-  const { user } = useAuth()
-  const { league, config, memberLoading } = useLeague()
-  const [tab, setTab] = useState('market')
+  const { user, signOut } = useAuth()
+  const { league, config, memberLoading, memberError } = useLeague()
+  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requestedTab = searchParams.get('tab')
+  const [tab, setTab] = useState(['market', 'portfolio', 'leaderboard'].includes(requestedTab) ? requestedTab : 'market')
+  const [joinCode, setJoinCode] = useState('')
   const [cash, setCash] = useState(STOCK_START_CASH)
   const [holdings, setHoldings] = useState([])
   const [teams, setTeams] = useState([])
@@ -247,6 +253,10 @@ export default function Market() {
   const [leaderAccounts, setLeaderAccounts] = useState([])
   const [leaderHoldings, setLeaderHoldings] = useState([])
   const [members, setMembers] = useState([])
+
+  useEffect(() => {
+    setTab(['market', 'portfolio', 'leaderboard'].includes(requestedTab) ? requestedTab : 'market')
+  }, [requestedTab])
 
   // Profile setup
   const [profile, setProfile] = useState(null)
@@ -278,6 +288,7 @@ export default function Market() {
     const seasonId = config.season_id
     const startCash = config.start_cash ?? STOCK_START_CASH
     setLoading(true)
+    setLoadErr(null)
 
     Promise.all([
       supabase.from('stock_accounts').select('cash').eq('league_id', league.id).eq('season_id', seasonId).eq('user_id', user.id).maybeSingle(),
@@ -288,6 +299,8 @@ export default function Market() {
       supabase.from('stock_holdings').select('user_id, team_id, shares').eq('league_id', league.id).eq('season_id', seasonId),
       supabase.from('league_members').select('user_id, user:users(display_name, ob_handle)').eq('league_id', league.id),
     ]).then(results => {
+      const failed = results.find(result => result.error)
+      if (failed) throw failed.error
       const [
         { data: acct }, { data: myHoldings }, { data: teamRows }, { data: allPrices },
         { data: leagueAccts }, { data: leagueHoldings }, { data: leagueMembers },
@@ -376,12 +389,29 @@ export default function Market() {
     )
   }
 
+  if (memberError) {
+    return (
+      <div className="page-container" style={{ paddingTop: 60, textAlign: 'center' }}>
+        <p style={{ fontSize: 32, marginBottom: 12 }}>⚠️</p>
+        <p style={{ fontWeight: 700, color: '#fff', marginBottom: 8 }}>Leagues unavailable</p>
+        <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 20 }}>{memberError}</p>
+        <button className="btn btn--accent" onClick={() => window.location.reload()}>Try again</button>
+      </div>
+    )
+  }
+
   if (!league || !config) {
     return (
       <div className="page-container" style={{ paddingTop: 60, textAlign: 'center' }}>
         <p style={{ fontSize: 32, marginBottom: 12 }}>🏈</p>
         <p style={{ fontWeight: 700, color: '#fff', marginBottom: 8 }}>You're not in a league</p>
-        <p style={{ color: 'var(--muted)', fontSize: 14 }}>Ask your commissioner for an invite link.</p>
+        <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>Paste the invite code from your commissioner to get started.</p>
+        <form onSubmit={e => { e.preventDefault(); if (joinCode.trim()) navigate(`/join/${encodeURIComponent(joinCode.trim())}`) }} className="card" style={{ padding: 16, textAlign: 'left', marginBottom: 16 }}>
+          <label htmlFor="join-code" style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>Invite code</label>
+          <input id="join-code" value={joinCode} onChange={e => setJoinCode(e.target.value)} autoComplete="off" placeholder="Enter invite code" style={{ width: '100%', padding: '12px 14px', borderRadius: 10, background: 'var(--bg)', border: '1px solid var(--line-2)', color: '#fff', fontFamily: 'inherit', fontSize: 15, marginBottom: 12 }} />
+          <button type="submit" className="btn btn--accent" disabled={!joinCode.trim()} style={{ width: '100%' }}>Join league</button>
+        </form>
+        <button type="button" onClick={signOut} className="btn btn--ghost">Sign out</button>
       </div>
     )
   }
@@ -402,6 +432,12 @@ export default function Market() {
   }
 
   const TABS = [{ key: 'market', label: 'Market' }, { key: 'portfolio', label: 'My Stocks' }, { key: 'leaderboard', label: 'Leaderboard' }]
+
+  function changeTab(nextTab) {
+    setTab(nextTab)
+    if (nextTab === 'market') setSearchParams({}, { replace: true })
+    else setSearchParams({ tab: nextTab }, { replace: true })
+  }
 
   return (
     <>
@@ -480,7 +516,7 @@ export default function Market() {
 
       <div style={{ display: 'flex', gap: 4, marginBottom: 16, background: 'var(--surface-2)', padding: 4, borderRadius: 'var(--r-sm)' }}>
         {TABS.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)} style={{ flex: 1, padding: '8px 4px', borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 800, fontSize: 13, background: tab === t.key ? 'var(--surface-3)' : 'transparent', color: tab === t.key ? '#fff' : 'var(--muted)', transition: 'all 0.15s' }}>
+          <button key={t.key} onClick={() => changeTab(t.key)} style={{ flex: 1, padding: '8px 4px', borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 800, fontSize: 13, background: tab === t.key ? 'var(--surface-3)' : 'transparent', color: tab === t.key ? '#fff' : 'var(--muted)', transition: 'all 0.15s' }}>
             {t.label}
           </button>
         ))}
@@ -513,7 +549,8 @@ export default function Market() {
             <div className="card" style={{ padding: 32, textAlign: 'center', borderStyle: 'dashed' }}>
               <p style={{ fontSize: 28, marginBottom: 12 }}>📊</p>
               <p style={{ fontWeight: 900, color: '#fff', marginBottom: 6 }}>No positions yet</p>
-              <p style={{ color: 'var(--muted)', fontSize: 14 }}>Head to Market to buy your first shares.</p>
+              <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 16 }}>Head to Market to buy your first shares.</p>
+              <button type="button" className="btn btn--accent" onClick={() => changeTab('market')}>Browse teams</button>
             </div>
           )
         }
