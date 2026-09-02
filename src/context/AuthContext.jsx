@@ -4,25 +4,26 @@ import { supabase } from '../lib/supabase'
 const AuthContext = createContext(null)
 
 // profile = { display_name, ob_handle } from public.users; null until loaded (or if no row yet)
+//
+// profileLoading is DERIVED: true while we have a user whose profile row hasn't been fetched yet.
+// (An earlier version set it from onAuthStateChange, which fires on every token refresh / user
+// update and left the flag stuck at true — the admin pages spun forever.)
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(undefined)
   const [user, setUser] = useState(null)
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false)
   const [profile, setProfile] = useState(null)
-  const [profileLoaded, setProfileLoaded] = useState(false)
-  const [profileLoading, setProfileLoading] = useState(false)
+  const [profileForUserId, setProfileForUserId] = useState(null)   // which user the profile/admin state belongs to
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setProfileLoading(!!session?.user)
       setSession(session)
       setUser(session?.user ?? null)
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setProfileLoading(!!session?.user)
       setSession(session)
-      setUser(session?.user ?? null)
+      setUser(prev => (prev?.id === session?.user?.id ? prev : (session?.user ?? null)))
     })
     return () => subscription.unsubscribe()
   }, [])
@@ -40,37 +41,39 @@ export function AuthProvider({ children }) {
     if (!user) {
       setIsPlatformAdmin(false)
       setProfile(null)
-      setProfileLoaded(false)
-      setProfileLoading(false)
+      setProfileForUserId(null)
       return
     }
+    if (profileForUserId === user.id) return   // already loaded for this user
 
     let cancelled = false
-    setProfileLoading(true)
     loadProfile(user.id)
       .then(data => {
         if (cancelled) return
         setIsPlatformAdmin(data?.is_admin_platform === true)
         setProfile(data ? { display_name: data.display_name ?? null, ob_handle: data.ob_handle ?? null } : null)
-        setProfileLoaded(true)
-        setProfileLoading(false)
+        setProfileForUserId(user.id)
       })
       .catch(() => {
         if (cancelled) return
         setIsPlatformAdmin(false)
-        setProfileLoaded(true)
-        setProfileLoading(false)
+        setProfile(null)
+        setProfileForUserId(user.id)
       })
     return () => { cancelled = true }
-  }, [user?.id, loadProfile])
+  }, [user?.id, profileForUserId, loadProfile])
 
   const refreshProfile = useCallback(async () => {
     if (!user) return
     const data = await loadProfile(user.id)
     setProfile(data ? { display_name: data.display_name ?? null, ob_handle: data.ob_handle ?? null } : null)
+    setIsPlatformAdmin(data?.is_admin_platform === true)
   }, [user?.id, loadProfile])
 
   const signOut = () => supabase.auth.signOut()
+
+  const profileLoaded = !!user && profileForUserId === user.id
+  const profileLoading = !!user && !profileLoaded
 
   return (
     <AuthContext.Provider value={{
