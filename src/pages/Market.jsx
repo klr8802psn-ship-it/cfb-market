@@ -13,6 +13,7 @@ import { STOCK_START_CASH, holdingsValue, portfolioValue } from '../lib/stocks'
 import { buildCostBasis, positionPL } from '../lib/costBasis'
 import { nextClose, nextOpen, formatCountdown, formatShortDate } from '../lib/schedule'
 import { avatarColor, initials } from '../lib/avatar'
+import { parseInviteCode } from '../lib/invite'
 
 function fmt(n) {
   return '$' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -615,11 +616,14 @@ export default function Market() {
       <div className="page-container" style={{ paddingTop: 60, textAlign: 'center' }}>
         <p style={{ fontSize: 32, marginBottom: 12 }}>🏈</p>
         <p style={{ fontWeight: 700, color: '#fff', marginBottom: 8 }}>You're not in a league</p>
-        <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>Paste the invite code from your commissioner to get started.</p>
-        <form onSubmit={e => { e.preventDefault(); if (joinCode.trim()) navigate(`/join/${encodeURIComponent(joinCode.trim())}`) }} className="card" style={{ padding: 16, textAlign: 'left', marginBottom: 16 }}>
-          <label htmlFor="join-code" style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>Invite code</label>
-          <input id="join-code" value={joinCode} onChange={e => setJoinCode(e.target.value)} autoComplete="off" placeholder="Enter invite code" style={{ width: '100%', padding: '12px 14px', borderRadius: 10, background: 'var(--bg)', border: '1px solid var(--line-2)', color: '#fff', fontFamily: 'inherit', fontSize: 15, marginBottom: 12 }} />
-          <button type="submit" className="btn btn--accent" disabled={!joinCode.trim()} style={{ width: '100%' }}>Join league</button>
+        <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>Paste the invite link or code from your commissioner to get started.</p>
+        <form onSubmit={e => { e.preventDefault(); const code = parseInviteCode(joinCode); if (code) navigate(`/join/${encodeURIComponent(code)}`) }} className="card" style={{ padding: 16, textAlign: 'left', marginBottom: 16 }}>
+          <label htmlFor="join-code" style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>Invite link or code</label>
+          <input id="join-code" value={joinCode} onChange={e => setJoinCode(e.target.value)} autoComplete="off" autoCapitalize="none" spellCheck={false} placeholder="cfb-market.vercel.app/join/… or the code" style={{ width: '100%', padding: '12px 14px', borderRadius: 10, background: 'var(--bg)', border: '1px solid var(--line-2)', color: '#fff', fontFamily: 'inherit', fontSize: 15, marginBottom: 12 }} />
+          {parseInviteCode(joinCode) && parseInviteCode(joinCode) !== joinCode.trim() && (
+            <p className="num" style={{ fontSize: 11, color: 'var(--faint)', margin: '-4px 0 12px' }}>Code: {parseInviteCode(joinCode)}</p>
+          )}
+          <button type="submit" className="btn btn--accent" disabled={!parseInviteCode(joinCode)} style={{ width: '100%' }}>Join league</button>
         </form>
         <button type="button" onClick={signOut} className="btn btn--ghost">Sign out</button>
       </div>
