@@ -608,8 +608,6 @@ export default function Market() {
     }
     if (filter === 'top25') {
       list = list.filter(t => priceByTeam[t.id] != null).slice(0, 25)
-    } else if (filter === 'mine') {
-      list = list.filter(t => holdings.some(h => h.team_id === t.id))
     } else if (filter === 'movers') {
       list = list
         .filter(t => priceByTeam[t.id] != null && prevPriceByTeam[t.id] != null && priceByTeam[t.id] !== prevPriceByTeam[t.id])
@@ -621,13 +619,12 @@ export default function Market() {
         .slice(0, 25)
     }
     return list
-  }, [sortedTeams, search, filter, priceByTeam, prevPriceByTeam, holdings])
+  }, [sortedTeams, search, filter, priceByTeam, prevPriceByTeam])
 
   const chips = [
     { key: 'all', label: 'All' },
     { key: 'top25', label: 'Top 25' },
     { key: 'movers', label: 'Movers', disabled: !hasAnyDelta },
-    { key: 'mine', label: 'My Teams', disabled: holdings.length === 0 },
   ]
 
   const closeAt = nextClose(now)
