@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import TeamMark from './TeamMark'
 import { validateBuy } from '../lib/stocks'
 import { positionPL } from '../lib/costBasis'
@@ -50,6 +51,8 @@ function Chart({ history }) {
   )
 }
 
+let openSheets = 0   // module-level: how many TeamSheets are mounted (see history handling below)
+
 function Stat({ label, value, sub, color }) {
   return (
     <div>
@@ -61,6 +64,50 @@ function Stat({ label, value, sub, color }) {
 }
 
 export default function TeamSheet({ team, rank, price, prevPrice, fpi, history, held, basis, cash, holdings, priceByTeam, tradingOpen, onBuy, onSell, onClose }) {
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+
+  // Dismissal: ✕ button, grip tap, backdrop tap, Escape, swipe-down, and the phone's back button.
+  useEffect(() => {
+    let closedByPop = false
+    const onPop = () => { closedByPop = true; onCloseRef.current() }
+    const onKey = (e) => { if (e.key === 'Escape') onCloseRef.current() }
+    openSheets++
+    if (!window.history.state?.teamSheet) window.history.pushState({ teamSheet: true }, '')
+    window.addEventListener('popstate', onPop)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      openSheets--
+      window.removeEventListener('popstate', onPop)
+      window.removeEventListener('keydown', onKey)
+      // Closed via UI: pop the history entry we pushed so Back doesn't need two taps.
+      // Deferred + counted so StrictMode's mount/unmount/mount in dev doesn't fire a stray back().
+      setTimeout(() => {
+        if (openSheets === 0 && !closedByPop && window.history.state?.teamSheet) window.history.back()
+      }, 0)
+    }
+  }, [])
+
+  const sheetRef = useRef(null)
+  const touchStartY = useRef(null)
+  const [dragY, setDragY] = useState(0)
+  function onTouchStart(e) {
+    if (sheetRef.current && sheetRef.current.scrollTop > 0) { touchStartY.current = null; return }
+    touchStartY.current = e.touches[0].clientY
+  }
+  function onTouchMove(e) {
+    if (touchStartY.current == null) return
+    const dy = e.touches[0].clientY - touchStartY.current
+    if (dy > 0) setDragY(dy)
+  }
+  function onTouchEnd() {
+    if (touchStartY.current == null) return
+    const dy = dragY
+    touchStartY.current = null
+    setDragY(0)
+    if (dy > 90) onCloseRef.current()
+  }
+
   const hasPrice = price != null
   const delta = hasPrice && prevPrice != null ? price - prevPrice : null
   const pct = delta != null && prevPrice ? (delta / prevPrice) * 100 : null
@@ -72,10 +119,21 @@ export default function TeamSheet({ team, rank, price, prevPrice, fpi, history, 
 
   return (
     <div className="sheet-backdrop" onClick={onClose} role="dialog" aria-modal="true" aria-label={`${team.name} details`}>
-      <div className="sheet" onClick={e => e.stopPropagation()}>
-        <div className="sheet__grip" />
+      <div
+        className="sheet"
+        ref={sheetRef}
+        onClick={e => e.stopPropagation()}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        style={dragY ? { transform: `translateY(${dragY}px)`, transition: 'none' } : undefined}
+      >
+        <button type="button" className="sheet__grip-btn" onClick={onClose} aria-label="Close">
+          <span className="sheet__grip" />
+        </button>
+        <button type="button" onClick={onClose} aria-label="Close" className="sheet__close">✕</button>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, paddingRight: 40 }}>
           <TeamMark color={team.primary_color} color2={team.secondary_color} abbr={team.abbreviation} size="xl" />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -122,6 +180,7 @@ export default function TeamSheet({ team, rank, price, prevPrice, fpi, history, 
             {buyHint ?? `Buy ${team.abbreviation}`}
           </button>
         </div>
+        <button type="button" onClick={onClose} className="sheet__back">← Back to market</button>
       </div>
     </div>
   )

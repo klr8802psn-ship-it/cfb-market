@@ -189,7 +189,22 @@ body {
   border-radius: 20px 20px 0 0; padding: 10px 20px calc(20px + env(safe-area-inset-bottom));
   animation: sheet-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-.sheet__grip { width: 40px; height: 4px; border-radius: 2px; background: var(--line-2); margin: 0 auto 14px; }
+.sheet { position: relative; }
+.sheet__grip-btn { display: block; width: 100%; padding: 6px 0 12px; background: none; border: none; cursor: pointer; }
+.sheet__grip { display: block; width: 40px; height: 4px; border-radius: 2px; background: var(--line-2); margin: 0 auto; }
+.sheet__close {
+  position: absolute; top: 12px; right: 14px; width: 32px; height: 32px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--surface-3); border: 1px solid var(--line-2); color: var(--muted);
+  font-size: 14px; line-height: 1; cursor: pointer; font-family: inherit;
+}
+.sheet__close:hover { color: #fff; }
+.sheet__back {
+  display: block; width: 100%; margin-top: 12px; padding: 12px; border-radius: var(--r-sm);
+  background: none; border: 1px solid var(--line); color: var(--muted);
+  font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+}
+.sheet__back:hover { color: #fff; border-color: var(--line-2); }
 @keyframes sheet-in { from { transform: translateY(28px); opacity: 0; } }
 @keyframes fade-in { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .sheet, .sheet-backdrop { animation: none; } }
