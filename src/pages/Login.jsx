@@ -44,13 +44,16 @@ export default function Login() {
     if (tab === 'signup') {
       if (password !== confirm) { setErr('Passwords do not match.'); setBusy(false); return }
       if (password.length < 6) { setErr('Password must be at least 6 characters.'); setBusy(false); return }
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email: email.trim().toLowerCase(),
         password,
         options: { emailRedirectTo: `${window.location.origin}${nextPath}` },
       })
       setBusy(false)
       if (error) { setErr(error.message); return }
+      // Email confirmation is off for this project, so signUp returns a live session and the
+      // user is in. If confirmations are ever turned on, session is null and we show the notice.
+      if (data?.session) { navigate(nextPath, { replace: true }); return }
       setNotice('Almost there — check your email to confirm your account, then sign in.')
       return
     }
