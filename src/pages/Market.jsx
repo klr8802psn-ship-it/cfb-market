@@ -7,9 +7,12 @@ import TeamMark from '../components/TeamMark'
 import PortfolioBar from '../components/PortfolioBar'
 import TradeModal from '../components/TradeModal'
 import ProfileSetup from '../components/ProfileSetup'
-import { STOCK_START_CASH, holdingsValue, portfolioValue, validateBuy } from '../lib/stocks'
+import AppBar from '../components/AppBar'
+import TeamSheet from '../components/TeamSheet'
+import { STOCK_START_CASH, holdingsValue, portfolioValue } from '../lib/stocks'
 import { buildCostBasis, positionPL } from '../lib/costBasis'
-import { nextClose, nextOpen, formatCountdown, formatWeekdayTime, formatShortDate } from '../lib/schedule'
+import { nextClose, nextOpen, formatCountdown, formatShortDate } from '../lib/schedule'
+import { avatarColor, initials } from '../lib/avatar'
 
 function fmt(n) {
   return '$' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -17,10 +20,6 @@ function fmt(n) {
 function fmtPrice(n) {
   if (n == null) return '—'
   return '$' + Number(n).toFixed(2)
-}
-function fmtSigned(n, digits = 2) {
-  const v = Number(n) || 0
-  return (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(digits)
 }
 function fmtSignedMoney(n) {
   const v = Number(n) || 0
@@ -43,32 +42,27 @@ function InfoTooltip() {
         type="button"
         aria-label="How team pricing works"
         onClick={() => setOpen(v => !v)}
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
         style={{
-          width: 20, height: 20, borderRadius: '50%', border: '1px solid var(--line)',
-          background: 'var(--surface)', color: 'var(--muted)', fontSize: 12, fontWeight: 800,
-          lineHeight: '18px', textAlign: 'center', cursor: 'pointer', padding: 0, fontFamily: 'inherit',
+          display: 'inline-flex', alignItems: 'center', gap: 5, border: 'none', background: 'none',
+          color: 'var(--faint)', fontSize: 11, fontWeight: 700, cursor: 'pointer', padding: 0, fontFamily: 'inherit',
         }}
       >
-        ?
+        <span style={{ width: 16, height: 16, borderRadius: '50%', border: '1px solid var(--line-2)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, lineHeight: 1 }}>?</span>
+        How pricing works
       </button>
       {open && (
         <>
           <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 49 }} />
           <div
-            onMouseEnter={() => setOpen(true)}
-            onMouseLeave={() => setOpen(false)}
             style={{
-              position: 'absolute', top: '130%', left: 0, width: 260, zIndex: 50,
-              background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 'var(--r-md)',
+              position: 'absolute', top: '140%', right: 0, width: 270, zIndex: 50,
+              background: 'var(--surface)', border: '1px solid var(--line-2)', borderRadius: 'var(--r-md)',
               padding: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
             }}
           >
             <p style={{ fontWeight: 900, color: '#fff', fontSize: 12, margin: '0 0 6px' }}>How pricing works</p>
             <p style={{ color: 'var(--muted)', fontSize: 12, lineHeight: 1.5, margin: '0 0 6px' }}>
-              Each team's price tracks real performance data (ESPN FPI, blended with SP+ when available) —
-              stronger teams cost more, weaker teams cost less.
+              Each team's price tracks real performance data (ESPN FPI blended with SP+). Stronger teams cost more, weaker teams cost less.
             </p>
             <p style={{ color: 'var(--muted)', fontSize: 12, lineHeight: 1.5, margin: '0 0 6px' }}>
               Prices also nudge up or down slightly based on how much traders are buying or selling a team.
@@ -77,7 +71,7 @@ function InfoTooltip() {
               Prices settle every Monday after that week's games. No team ever drops below a $25 floor.
             </p>
             <p style={{ color: 'var(--muted)', fontSize: 12, lineHeight: 1.5, margin: 0 }}>
-              You can't put more than 40% of your portfolio into a single team — spread your bets.
+              You can't put more than 40% of your portfolio into a single team.
             </p>
           </div>
         </>
@@ -86,19 +80,15 @@ function InfoTooltip() {
   )
 }
 
-// ── Sparkline (handles { price, date } objects or plain numbers) ──────────────
+// ── Sparkline ─────────────────────────────────────────────────────────────────
 function Sparkline({ prices, width = 44, height = 18 }) {
-  if (!prices || prices.length < 2) return null
+  if (!prices || prices.length < 2) return <span style={{ display: 'block', width, height }} aria-hidden />
   const vals = prices.map(p => typeof p === 'number' ? p : Number(p.price))
   const min = Math.min(...vals)
   const max = Math.max(...vals)
   const range = max - min || 1
   const step = width / (vals.length - 1)
-  const points = vals.map((v, i) => {
-    const x = i * step
-    const y = height - ((v - min) / range) * (height - 2) - 1
-    return `${x.toFixed(1)},${y.toFixed(1)}`
-  }).join(' ')
+  const points = vals.map((v, i) => `${(i * step).toFixed(1)},${(height - ((v - min) / range) * (height - 2) - 1).toFixed(1)}`).join(' ')
   const isUp = vals[vals.length - 1] >= vals[0]
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden style={{ flexShrink: 0, display: 'block' }}>
@@ -107,156 +97,73 @@ function Sparkline({ prices, width = 44, height = 18 }) {
   )
 }
 
-// ── Full price chart modal ────────────────────────────────────────────────────
-function PriceChartModal({ team, history, onClose }) {
-  if (!history || history.length === 0) return null
-  const vals = history.map(p => Number(p.price))
-  const min = Math.min(...vals)
-  const max = Math.max(...vals)
-  const range = max - min || 1
-  const W = 280, H = 100, PAD = { t: 10, b: 28, l: 8, r: 8 }
-  const chartW = W - PAD.l - PAD.r
-  const chartH = H - PAD.t - PAD.b
-  const n = vals.length
-
-  const pts = vals.map((v, i) => {
-    const x = PAD.l + (n === 1 ? chartW / 2 : (i / (n - 1)) * chartW)
-    const y = PAD.t + chartH - ((v - min) / range) * chartH
-    return { x, y, v, date: history[i].date }
-  })
-
-  const polyline = pts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')
-  const isUp = vals[vals.length - 1] >= vals[0]
-  const color = isUp ? 'var(--positive)' : 'var(--negative)'
-  const change = vals[vals.length - 1] - vals[0]
-  const changePct = vals[0] ? (change / vals[0]) * 100 : 0
-
-  function fmtDate(iso) {
-    if (!iso) return ''
-    return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-  }
-
+// ── Market table row ──────────────────────────────────────────────────────────
+function TableRow({ team, rank, price, prevPrice, history, held, onOpen }) {
+  const hasPrice = price != null
+  const delta = hasPrice && prevPrice != null ? price - prevPrice : null
+  const pct = delta != null && prevPrice ? (delta / prevPrice) * 100 : null
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 90, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div onClick={e => e.stopPropagation()} className="card" style={{ width: '100%', maxWidth: 340, padding: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-          <TeamMark color={team.primary_color} abbr={team.abbreviation} size="md" />
-          <div style={{ flex: 1 }}>
-            <p style={{ fontWeight: 900, color: '#fff', fontSize: 15, margin: 0 }}>{team.name}</p>
-            <p style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--faint)', margin: 0 }}>
-              {fmtPrice(vals[vals.length - 1])}
-              <span style={{ color, marginLeft: 6 }}>
-                {fmtSigned(change)} ({fmtPct(changePct)})
-              </span>
-            </p>
-          </div>
-          <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 20, cursor: 'pointer', lineHeight: 1, padding: 4 }}>✕</button>
-        </div>
-
-        {vals.length < 2 ? (
-          <p style={{ color: 'var(--muted)', fontSize: 13, textAlign: 'center', padding: '16px 0' }}>Not enough history yet — check back after the next Monday settle.</p>
+    <button type="button" className={`trow ${held > 0 ? 'trow--held' : ''}`} onClick={() => onOpen(team)} aria-label={`${team.name}, ${hasPrice ? fmtPrice(price) : 'not priced'}`}>
+      <span className={`rank ${rank && rank <= 25 ? 'rank--top' : ''}`}>{rank ?? '–'}</span>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+        <TeamMark color={team.primary_color} color2={team.secondary_color} abbr={team.abbreviation} size="md" />
+        <span style={{ minWidth: 0 }}>
+          <span className="ellip" style={{ display: 'block', fontWeight: 700, color: '#fff', fontSize: 13.5 }}>{team.name}</span>
+          <span className="ellip" style={{ display: 'block', fontSize: 10.5, color: 'var(--faint)', fontWeight: 600, marginTop: 1 }}>
+            {team.conference}
+            {held > 0 && <span className="num" style={{ color: 'var(--accent)', fontWeight: 900 }}> · {held} sh</span>}
+          </span>
+        </span>
+      </span>
+      <Sparkline prices={history} />
+      <span className="text-right">
+        <span className="num" style={{ display: 'block', fontWeight: 900, fontSize: 14, color: '#fff' }}>{hasPrice ? fmtPrice(price) : '—'}</span>
+        {delta != null && delta !== 0 ? (
+          <span className="num" style={{ display: 'block', fontSize: 10.5, fontWeight: 900, color: toneColor(delta) }}>{delta > 0 ? '▲' : '▼'} {fmtPct(Math.abs(pct))}</span>
         ) : (
-          <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: 'block', marginBottom: 4 }}>
-            <defs>
-              <linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={color} stopOpacity="0.15" />
-                <stop offset="100%" stopColor={color} stopOpacity="0" />
-              </linearGradient>
-            </defs>
-            <polygon
-              points={`${pts[0].x},${PAD.t + chartH} ${pts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')} ${pts[pts.length - 1].x},${PAD.t + chartH}`}
-              fill="url(#chartFill)"
-            />
-            <polyline points={polyline} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            {pts.map((p, i) => (
-              <circle key={i} cx={p.x} cy={p.y} r="3" fill={i === pts.length - 1 ? color : 'var(--bg)'} stroke={color} strokeWidth="1.5" />
-            ))}
-            {pts.length >= 2 && (
-              <>
-                <text x={pts[0].x} y={H - 4} textAnchor="start" fontSize="9" fill="var(--faint)" fontFamily="var(--font-mono)">{fmtDate(pts[0].date)}</text>
-                <text x={pts[pts.length - 1].x} y={H - 4} textAnchor="end" fontSize="9" fill="var(--faint)" fontFamily="var(--font-mono)">{fmtDate(pts[pts.length - 1].date)}</text>
-              </>
-            )}
-          </svg>
+          <span className="num" style={{ display: 'block', fontSize: 10.5, color: 'var(--faint)' }}>{hasPrice ? (delta === 0 ? 'unch' : '—') : ''}</span>
         )}
-
-        <p style={{ fontSize: 11, color: 'var(--faint)', textAlign: 'center', margin: 0 }}>
-          {vals.length} settle{vals.length !== 1 ? 's' : ''} · Tap anywhere to close
-        </p>
-      </div>
-    </div>
+      </span>
+    </button>
   )
 }
 
-// ── Market row ────────────────────────────────────────────────────────────────
-function MarketRow({ team, price, prevPrice, history, holdings, cash, priceByTeam, tradingOpen, onTrade, onChart, showPosition, basis }) {
-  const held = holdings.find(h => h.team_id === team.id)?.shares ?? 0
-  const hasPrice = price != null
-  const delta = hasPrice && prevPrice != null ? price - prevPrice : null
-  const deltaPct = delta != null && prevPrice ? (delta / prevPrice) * 100 : null
-  const canBuy = tradingOpen && hasPrice && validateBuy({ cash, holdings, priceByTeam, teamId: team.id, shares: 1 }).ok
-  const canSell = tradingOpen && held > 0
-
-  const pl = showPosition && held > 0 && hasPrice && basis
-    ? positionPL({ shares: held, avgCost: basis.avgCost, price })
-    : null
-
+// ── My Stocks row ─────────────────────────────────────────────────────────────
+function PositionRow({ team, rank, price, prevPrice, held, basis, onOpen }) {
+  const pl = price != null && basis ? positionPL({ shares: held, avgCost: basis.avgCost, price }) : null
+  const delta = price != null && prevPrice != null ? price - prevPrice : null
+  const pct = delta != null && prevPrice ? (delta / prevPrice) * 100 : null
   return (
-    <div className="card row-card" style={{ padding: 12, display: 'flex', alignItems: 'center', gap: 12, minHeight: 60 }}>
-      <TeamMark color={team.primary_color} abbr={team.abbreviation} size="md" />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontWeight: 700, color: '#fff', fontSize: 14, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{team.name}</p>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2, flexWrap: 'wrap' }}>
-          {held > 0 && (
-            <span style={{ fontSize: 10, fontWeight: 900, color: 'var(--accent)', fontFamily: 'var(--font-mono)' }}>
-              {showPosition && pl ? `${held} sh · ${fmt(pl.value)}` : `${held} share${held !== 1 ? 's' : ''}`}
-            </span>
-          )}
-          {!showPosition && delta != null && delta !== 0 && (
-            <span style={{ fontSize: 10, fontWeight: 900, fontFamily: 'var(--font-mono)', color: toneColor(delta) }}>
-              {fmtSigned(delta)} ({fmtPct(deltaPct)})
-            </span>
-          )}
-          {!showPosition && delta === 0 && (
-            <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--faint)' }}>unch</span>
-          )}
-        </div>
-        {showPosition && pl && (
-          <p style={{ fontSize: 10, fontFamily: 'var(--font-mono)', margin: '2px 0 0', color: 'var(--faint)' }}>
-            avg {fmtPrice(basis.avgCost)} ·{' '}
-            <span style={{ color: toneColor(pl.pl), fontWeight: 900 }}>{fmtSignedMoney(pl.pl)} ({fmtPct(pl.plPct)})</span>
-          </p>
-        )}
-      </div>
-      {hasPrice && (
-        <button type="button" onClick={() => onChart(team)} aria-label={`View ${team.name} price chart`} style={{ display: 'flex', alignItems: 'center', minWidth: 44, minHeight: 44, padding: 0, border: 'none', background: 'transparent', cursor: 'pointer' }}>
-          <Sparkline prices={history} />
-        </button>
-      )}
-      <div style={{ textAlign: 'right', flexShrink: 0, minWidth: 52 }}>
-        <p style={{ fontFamily: 'var(--font-mono)', fontWeight: 900, fontSize: 14, color: '#fff', margin: 0 }}>{hasPrice ? fmtPrice(price) : '—'}</p>
-        {showPosition && delta != null && delta !== 0 && (
-          <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 900, margin: 0, color: toneColor(delta) }}>{fmtPct(deltaPct)}</p>
-        )}
-      </div>
-      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-        <button type="button" onClick={() => hasPrice && onTrade(team, 'buy')} disabled={!canBuy}
-          style={{ fontSize: 11, fontWeight: 900, padding: '6px 10px', borderRadius: 8, background: canBuy ? 'var(--positive-soft)' : 'rgba(255,255,255,0.04)', color: canBuy ? 'var(--positive)' : '#475569', border: `1px solid ${canBuy ? 'var(--positive-line)' : 'rgba(255,255,255,0.06)'}`, cursor: canBuy ? 'pointer' : 'not-allowed' }}>
-          Buy
-        </button>
-        <button type="button" onClick={() => canSell && onTrade(team, 'sell')} disabled={!canSell}
-          style={{ fontSize: 11, fontWeight: 900, padding: '6px 10px', borderRadius: 8, background: canSell ? 'var(--negative-soft)' : 'rgba(255,255,255,0.04)', color: canSell ? 'var(--negative)' : '#475569', border: `1px solid ${canSell ? 'rgba(255,107,122,0.25)' : 'rgba(255,255,255,0.06)'}`, cursor: canSell ? 'pointer' : 'not-allowed' }}>
-          Sell
-        </button>
-      </div>
-    </div>
+    <button type="button" className="trow" onClick={() => onOpen(team)} style={{ gridTemplateColumns: 'minmax(0, 1fr) 96px 96px' }}>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+        <TeamMark color={team.primary_color} color2={team.secondary_color} abbr={team.abbreviation} size="md" />
+        <span style={{ minWidth: 0 }}>
+          <span className="ellip" style={{ display: 'block', fontWeight: 700, color: '#fff', fontSize: 13.5 }}>
+            {rank && <span className={`rank ${rank <= 25 ? 'rank--top' : ''}`} style={{ marginRight: 6 }}>#{rank}</span>}{team.name}
+          </span>
+          <span className="num ellip" style={{ display: 'block', fontSize: 10.5, color: 'var(--faint)', marginTop: 1 }}>
+            {held} sh · avg {basis ? fmtPrice(basis.avgCost) : '—'}
+          </span>
+        </span>
+      </span>
+      <span className="text-right">
+        <span className="num" style={{ display: 'block', fontWeight: 900, fontSize: 13, color: '#fff' }}>{fmt(pl?.value ?? held * (price ?? 0))}</span>
+        <span className="num" style={{ display: 'block', fontSize: 10.5, color: delta != null && delta !== 0 ? toneColor(delta) : 'var(--faint)' }}>
+          {fmtPrice(price)}{delta != null && delta !== 0 ? ` ${delta > 0 ? '▲' : '▼'}${Math.abs(pct).toFixed(1)}%` : ''}
+        </span>
+      </span>
+      <span className="text-right">
+        <span className="num" style={{ display: 'block', fontWeight: 900, fontSize: 13, color: pl ? toneColor(pl.pl) : 'var(--muted)' }}>{pl ? fmtSignedMoney(pl.pl) : '—'}</span>
+        <span className="num" style={{ display: 'block', fontSize: 10.5, color: pl ? toneColor(pl.pl) : 'var(--faint)' }}>{pl ? fmtPct(pl.plPct) : ''}</span>
+      </span>
+    </button>
   )
 }
 
 // ── Search + filter chips ─────────────────────────────────────────────────────
 function MarketFilters({ search, onSearch, filter, onFilter, chips }) {
   return (
-    <div style={{ marginBottom: 12 }}>
+    <div>
       <div style={{ position: 'relative', marginBottom: 8 }}>
         <span aria-hidden style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--faint)', fontSize: 14 }}>⌕</span>
         <input
@@ -266,7 +173,7 @@ function MarketFilters({ search, onSearch, filter, onFilter, chips }) {
           placeholder="Search teams or conferences"
           aria-label="Search teams"
           autoComplete="off"
-          style={{ width: '100%', padding: '10px 36px 10px 32px', borderRadius: 'var(--r-sm)', background: 'var(--surface)', border: '1px solid var(--line)', color: '#fff', fontFamily: 'inherit', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
+          style={{ width: '100%', padding: '9px 36px 9px 32px', borderRadius: 'var(--r-sm)', background: 'var(--surface)', border: '1px solid var(--line)', color: '#fff', fontFamily: 'inherit', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
         />
         {search && (
           <button type="button" onClick={() => onSearch('')} aria-label="Clear search" style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--muted)', fontSize: 14, cursor: 'pointer', padding: '6px 8px' }}>✕</button>
@@ -300,45 +207,80 @@ function MarketFilters({ search, onSearch, filter, onFilter, chips }) {
 }
 
 // ── Leaderboard tab ───────────────────────────────────────────────────────────
-function LeaderboardTab({ accounts, allHoldings, priceByTeam, members, currentUserId, startCash }) {
+function Avatar({ name, size = 32 }) {
+  return (
+    <span className="avatar" style={{ width: size, height: size, background: avatarColor(name), fontSize: size * 0.36 }} aria-hidden>
+      {initials(name)}
+    </span>
+  )
+}
+
+function LeaderboardTab({ accounts, allHoldings, priceByTeam, prevPriceByTeam, hasAnyDelta, members, teamsById, currentUserId, startCash }) {
   const ranked = useMemo(() => {
-    return members.map(m => {
+    const rows = members.map(m => {
       const acct = accounts.find(a => a.user_id === m.user_id)
       const cash = acct ? Number(acct.cash) : startCash
       const holdings = allHoldings.filter(h => h.user_id === m.user_id).map(h => ({ team_id: h.team_id, shares: h.shares }))
       const total = portfolioValue({ cash, holdings, priceByTeam })
-      const pl = total - startCash
-      return { ...m, cash, total, pl }
-    }).sort((a, b) => b.total - a.total)
-  }, [accounts, allHoldings, priceByTeam, members, startCash])
+      // Value at last week's prices (current holdings), for rank movement
+      const prevPrices = Object.fromEntries(Object.keys(priceByTeam).map(id => [id, prevPriceByTeam[id] ?? priceByTeam[id]]))
+      const prevTotal = portfolioValue({ cash, holdings, priceByTeam: prevPrices })
+      const top = [...holdings].sort((a, b) => (b.shares * (priceByTeam[b.team_id] ?? 0)) - (a.shares * (priceByTeam[a.team_id] ?? 0))).slice(0, 3)
+      return { ...m, cash, total, prevTotal, pl: total - startCash, top }
+    })
+    const byPrev = [...rows].sort((a, b) => b.prevTotal - a.prevTotal).map(r => r.user_id)
+    return rows.sort((a, b) => b.total - a.total).map((r, i) => ({ ...r, rank: i + 1, prevRank: byPrev.indexOf(r.user_id) + 1 }))
+  }, [accounts, allHoldings, priceByTeam, prevPriceByTeam, members, startCash])
 
   if (!ranked.length) {
     return <p style={{ color: 'var(--muted)', fontSize: 14, textAlign: 'center', padding: 32 }}>No members yet.</p>
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {ranked.map((m, idx) => {
+    <div className="table">
+      <div className="table__head" style={{ gridTemplateColumns: '26px minmax(0, 1fr) 96px' }}>
+        <span>#</span><span>Player</span><span className="text-right">Portfolio</span>
+      </div>
+      {ranked.map(m => {
         const isMe = m.user_id === currentUserId
+        const move = m.rank - m.prevRank   // negative = moved up
         return (
-          <div key={m.user_id} className="card" style={{ padding: 12, display: 'flex', alignItems: 'center', gap: 12, ...(isMe ? { borderColor: 'var(--accent-line)', background: 'rgba(245,158,11,0.04)' } : {}) }}>
-            <div style={{ width: 28, height: 28, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-mono)', fontWeight: 900, fontSize: 12, flexShrink: 0, background: idx === 0 ? 'var(--accent-soft)' : 'rgba(255,255,255,0.05)', color: idx === 0 ? 'var(--accent)' : '#94a3b8', border: idx === 0 ? '1px solid var(--accent-line)' : '1px solid rgba(255,255,255,0.06)' }}>
-              {idx + 1}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontWeight: 700, color: '#fff', fontSize: 14, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {m.display_name ?? 'Unknown'}{isMe && <span style={{ color: 'var(--accent)', marginLeft: 6, fontSize: 10, fontWeight: 900 }}>You</span>}
-              </p>
-              {m.ob_handle && (
-                <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--faint)', margin: 0 }}>
-                  <span style={{ color: 'var(--accent)', fontWeight: 700 }}>OB</span> · {m.ob_handle}
-                </p>
+          <div key={m.user_id} className="trow" style={{ gridTemplateColumns: '26px minmax(0, 1fr) 96px', cursor: 'default', ...(isMe ? { background: 'rgba(245,158,11,0.05)' } : {}) }}>
+            <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+              <span className={`rank ${m.rank <= 3 ? 'rank--top' : ''}`} style={{ fontSize: 12 }}>{m.rank}</span>
+              {hasAnyDelta && move !== 0 && (
+                <span className="num" style={{ fontSize: 9, fontWeight: 900, color: move < 0 ? 'var(--positive)' : 'var(--negative)' }}>{move < 0 ? '▲' : '▼'}{Math.abs(move)}</span>
               )}
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <p style={{ fontFamily: 'var(--font-mono)', fontWeight: 900, fontSize: 14, color: '#fff', margin: 0 }}>{fmt(m.total)}</p>
-              <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 900, margin: 0, color: toneColor(m.pl) }}>{fmtSignedMoney(m.pl)}</p>
-            </div>
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+              <Avatar name={m.display_name} />
+              <span style={{ minWidth: 0, flex: 1 }}>
+                <span className="ellip" style={{ display: 'block', fontWeight: 700, color: '#fff', fontSize: 13.5 }}>
+                  {m.display_name ?? 'Unknown'}{isMe && <span style={{ color: 'var(--accent)', marginLeft: 6, fontSize: 10, fontWeight: 900 }}>YOU</span>}
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, minHeight: 16 }}>
+                  {m.top.length > 0 ? (
+                    <span style={{ display: 'inline-flex', gap: 3 }}>
+                      {m.top.map(h => {
+                        const t = teamsById[h.team_id]
+                        return t ? <TeamMark key={h.team_id} color={t.primary_color} color2={t.secondary_color} abbr={t.abbreviation} size="xs" title={`${t.name} · ${h.shares} sh`} /> : null
+                      })}
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: 10, color: 'var(--faint)' }}>all cash</span>
+                  )}
+                  {m.ob_handle && (
+                    <span className="num ellip" style={{ fontSize: 10, color: 'var(--faint)' }}>
+                      <span style={{ color: 'var(--accent)', fontWeight: 700 }}>OB</span> · {m.ob_handle}
+                    </span>
+                  )}
+                </span>
+              </span>
+            </span>
+            <span className="text-right">
+              <span className="num" style={{ display: 'block', fontWeight: 900, fontSize: 14, color: '#fff' }}>{fmt(m.total)}</span>
+              <span className="num" style={{ display: 'block', fontSize: 10.5, fontWeight: 900, color: toneColor(m.pl) }}>{fmtSignedMoney(m.pl)}</span>
+            </span>
           </div>
         )
       })}
@@ -359,36 +301,36 @@ function relativeTime(iso, now) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-function ActivityFeed({ transactions, teams, members, currentUserId, now }) {
-  const teamById = useMemo(() => Object.fromEntries(teams.map(t => [t.id, t])), [teams])
+function ActivityFeed({ transactions, teamsById, members, currentUserId, now, onOpen }) {
   const nameById = useMemo(() => Object.fromEntries(members.map(m => [m.user_id, m.display_name])), [members])
   if (!transactions.length) return null
 
   return (
-    <div style={{ marginTop: 28 }}>
-      <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.12em', color: 'var(--faint)', textTransform: 'uppercase', marginBottom: 10 }}>
+    <div style={{ marginTop: 24 }}>
+      <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.12em', color: 'var(--faint)', textTransform: 'uppercase', marginBottom: 8 }}>
         Recent trades
       </p>
-      <div className="card" style={{ padding: '4px 0' }}>
+      <div className="table">
         {transactions.map((tx, i) => {
-          const team = teamById[tx.team_id]
+          const team = teamsById[tx.team_id]
           const isBuy = tx.side === 'buy'
           const isMe = tx.user_id === currentUserId
           const who = isMe ? 'You' : (nameById[tx.user_id] ?? 'Someone')
           return (
-            <div key={`${tx.created_at}-${tx.user_id}-${tx.team_id}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderTop: i === 0 ? 'none' : '1px solid var(--line)' }}>
-              {team ? <TeamMark color={team.primary_color} abbr={team.abbreviation} size="sm" /> : <div style={{ width: 28, height: 28 }} />}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontSize: 13, color: '#fff', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <button key={`${tx.created_at}-${tx.user_id}-${tx.team_id}-${i}`} type="button" className="trow" style={{ gridTemplateColumns: '28px minmax(0, 1fr) auto', minHeight: 48, padding: '8px 12px' }} onClick={() => team && onOpen(team)}>
+              {team ? <TeamMark color={team.primary_color} color2={team.secondary_color} abbr={team.abbreviation} size="md" /> : <span />}
+              <span style={{ minWidth: 0 }}>
+                <span className="ellip" style={{ display: 'block', fontSize: 13, color: '#fff' }}>
                   <span style={{ fontWeight: 800, color: isMe ? 'var(--accent)' : '#fff' }}>{who}</span>
                   {' '}<span style={{ color: isBuy ? 'var(--positive)' : 'var(--negative)', fontWeight: 800 }}>{isBuy ? 'bought' : 'sold'}</span>
-                  {' '}{tx.shares} sh {team?.name ?? 'a team'}
-                </p>
-                <p style={{ fontSize: 10, color: 'var(--faint)', margin: 0, fontFamily: 'var(--font-mono)' }}>
-                  @ {fmtPrice(tx.price)} · {fmt(Number(tx.shares) * Number(tx.price))} · {relativeTime(tx.created_at, now)}
-                </p>
-              </div>
-            </div>
+                  {' '}{tx.shares} {team?.abbreviation ?? 'sh'}
+                </span>
+                <span className="num" style={{ display: 'block', fontSize: 10, color: 'var(--faint)' }}>
+                  @ {fmtPrice(tx.price)} · {fmt(Number(tx.shares) * Number(tx.price))}
+                </span>
+              </span>
+              <span className="num" style={{ fontSize: 10, color: 'var(--faint)', whiteSpace: 'nowrap' }}>{relativeTime(tx.created_at, now)}</span>
+            </button>
           )
         })}
       </div>
@@ -399,34 +341,35 @@ function ActivityFeed({ transactions, teams, members, currentUserId, now }) {
 // ── Loading skeleton ──────────────────────────────────────────────────────────
 function MarketSkeleton() {
   return (
-    <div className="page-container" aria-busy="true" aria-label="Loading market">
-      <div style={{ marginBottom: 16 }}>
-        <div className="skeleton" style={{ height: 26, width: 150, marginBottom: 6 }} />
-        <div className="skeleton" style={{ height: 11, width: 90 }} />
-      </div>
-      <div className="skeleton" style={{ height: 11, width: '60%', marginBottom: 16 }} />
-      <div className="card card--raised" style={{ padding: 20, marginBottom: 20 }}>
-        <div className="skeleton" style={{ height: 10, width: 90, marginBottom: 16 }} />
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <div><div className="skeleton" style={{ height: 9, width: 40, marginBottom: 6 }} /><div className="skeleton" style={{ height: 20, width: 100 }} /></div>
-          <div><div className="skeleton" style={{ height: 9, width: 50, marginBottom: 6 }} /><div className="skeleton" style={{ height: 20, width: 100 }} /></div>
+    <>
+      <div className="appbar"><div className="appbar__inner"><div className="skeleton" style={{ height: 18, width: 120 }} /><div className="skeleton" style={{ height: 24, width: 96, borderRadius: 100 }} /></div></div>
+      <div className="page-container" aria-busy="true" aria-label="Loading market">
+        <div className="card card--raised" style={{ padding: 20, marginBottom: 16, marginTop: 4 }}>
+          <div className="skeleton" style={{ height: 10, width: 90, marginBottom: 16 }} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div><div className="skeleton" style={{ height: 9, width: 40, marginBottom: 6 }} /><div className="skeleton" style={{ height: 20, width: 100 }} /></div>
+            <div><div className="skeleton" style={{ height: 9, width: 50, marginBottom: 6 }} /><div className="skeleton" style={{ height: 20, width: 100 }} /></div>
+          </div>
+        </div>
+        <div className="skeleton" style={{ height: 38, marginBottom: 12, borderRadius: 'var(--r-sm)' }} />
+        <div className="table">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="trow" style={{ cursor: 'default' }}>
+              <div className="skeleton" style={{ height: 10, width: 14, margin: '0 auto' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div className="skeleton" style={{ width: 28, height: 28, borderRadius: 6 }} />
+                <div style={{ flex: 1 }}>
+                  <div className="skeleton" style={{ height: 11, width: `${45 + (i % 3) * 14}%`, marginBottom: 5 }} />
+                  <div className="skeleton" style={{ height: 8, width: '22%' }} />
+                </div>
+              </div>
+              <div />
+              <div className="skeleton" style={{ height: 13, width: 60, marginLeft: 'auto' }} />
+            </div>
+          ))}
         </div>
       </div>
-      <div className="skeleton" style={{ height: 38, marginBottom: 16, borderRadius: 'var(--r-sm)' }} />
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {Array.from({ length: 7 }).map((_, i) => (
-          <div key={i} className="card" style={{ padding: 12, display: 'flex', alignItems: 'center', gap: 12, minHeight: 60 }}>
-            <div className="skeleton" style={{ width: 36, height: 36, borderRadius: 10 }} />
-            <div style={{ flex: 1 }}>
-              <div className="skeleton" style={{ height: 12, width: `${45 + (i % 3) * 12}%`, marginBottom: 6 }} />
-              <div className="skeleton" style={{ height: 9, width: '25%' }} />
-            </div>
-            <div className="skeleton" style={{ height: 14, width: 52 }} />
-            <div className="skeleton" style={{ height: 28, width: 92, borderRadius: 8 }} />
-          </div>
-        ))}
-      </div>
-    </div>
+    </>
   )
 }
 
@@ -447,6 +390,7 @@ export default function Market() {
   const [teams, setTeams] = useState([])
   const [priceByTeam, setPriceByTeam] = useState({})
   const [prevPriceByTeam, setPrevPriceByTeam] = useState({})
+  const [fpiByTeam, setFpiByTeam] = useState({})
   const [historyByTeam, setHistoryByTeam] = useState({})  // { price, date }[]
   const [lastSettledAt, setLastSettledAt] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -454,7 +398,7 @@ export default function Market() {
   const [leaderAccounts, setLeaderAccounts] = useState([])
   const [leaderHoldings, setLeaderHoldings] = useState([])
   const [members, setMembers] = useState([])
-  const [leagueTx, setLeagueTx] = useState([])   // recent trades across the league (activity feed)
+  const [leagueTx, setLeagueTx] = useState([])
 
   // Search / filter
   const [search, setSearch] = useState('')
@@ -471,15 +415,13 @@ export default function Market() {
     setTab(TAB_KEYS.includes(requestedTab) ? requestedTab : 'market')
   }, [requestedTab])
 
-  // Trade modal
+  // Team sheet + trade modal
+  const [sheetTeam, setSheetTeam] = useState(null)
   const [tradeTeam, setTradeTeam] = useState(null)
   const [tradeSide, setTradeSide] = useState('buy')
   const [tradeSuccess, setTradeSuccess] = useState(null)
   const [tradeBusy, setTradeBusy] = useState(false)
   const [tradeError, setTradeError] = useState(null)
-
-  // Price chart modal
-  const [chartTeam, setChartTeam] = useState(null)
 
   useEffect(() => {
     if (!config || !user || !league) { setLoading(false); return }
@@ -491,8 +433,8 @@ export default function Market() {
     Promise.all([
       supabase.from('stock_accounts').select('cash').eq('league_id', league.id).eq('season_id', seasonId).eq('user_id', user.id).maybeSingle(),
       supabase.from('stock_holdings').select('team_id, shares').eq('league_id', league.id).eq('season_id', seasonId).eq('user_id', user.id),
-      supabase.from('teams').select('id, name, abbreviation, primary_color, conference').eq('sport', 'CFB').order('name'),
-      supabase.from('stock_prices').select('team_id, price, settled_at').eq('season_id', seasonId).order('settled_at', { ascending: false }),
+      supabase.from('teams').select('id, name, abbreviation, primary_color, secondary_color, conference').eq('sport', 'CFB').order('name'),
+      supabase.from('stock_prices').select('team_id, price, fpi, settled_at').eq('season_id', seasonId).order('settled_at', { ascending: false }),
       supabase.from('stock_accounts').select('user_id, cash').eq('league_id', league.id).eq('season_id', seasonId),
       supabase.from('stock_holdings').select('user_id, team_id, shares').eq('league_id', league.id).eq('season_id', seasonId),
       supabase.from('league_members').select('user_id, user:users(display_name, ob_handle)').eq('league_id', league.id),
@@ -522,14 +464,17 @@ export default function Market() {
       const latest = {}
       const prev = {}
       const hist = {}
+      const fpi = {}
       for (const [teamId, records] of Object.entries(byTeam)) {
         const sorted = [...records].sort((a, b) => new Date(b.settled_at) - new Date(a.settled_at))
         latest[teamId] = Number(sorted[0].price)
+        if (sorted[0].fpi != null) fpi[teamId] = Number(sorted[0].fpi)
         if (sorted[1]) prev[teamId] = Number(sorted[1].price)
         hist[teamId] = sorted.slice().reverse().map(r => ({ price: Number(r.price), date: r.settled_at }))
       }
       setPriceByTeam(latest)
       setPrevPriceByTeam(prev)
+      setFpiByTeam(fpi)
       setHistoryByTeam(hist)
       setLastSettledAt(newest)
       setLeaderAccounts(leagueAccts ?? [])
@@ -547,7 +492,6 @@ export default function Market() {
     if (!config || !user || !league) return
     const seasonId = config.season_id
     const startCash = config.start_cash ?? STOCK_START_CASH
-    // Refresh everything a trade can change: my account + the league leaderboard + the activity feed.
     Promise.all([
       supabase.from('stock_accounts').select('cash').eq('league_id', league.id).eq('season_id', seasonId).eq('user_id', user.id).maybeSingle(),
       supabase.from('stock_holdings').select('team_id, shares').eq('league_id', league.id).eq('season_id', seasonId).eq('user_id', user.id),
@@ -591,10 +535,19 @@ export default function Market() {
   const tradingOpen = config?.trading_open !== false
   const hasAnyPrice = Object.keys(priceByTeam).length > 0
   const hasAnyDelta = Object.keys(prevPriceByTeam).length > 0
+  const heldById = useMemo(() => Object.fromEntries(holdings.map(h => [h.team_id, h.shares])), [holdings])
+  const teamsById = useMemo(() => Object.fromEntries(teams.map(t => [t.id, t])), [teams])
 
   const sortedTeams = useMemo(() => {
     return [...teams].sort((a, b) => (priceByTeam[b.id] ?? -1) - (priceByTeam[a.id] ?? -1))
   }, [teams, priceByTeam])
+
+  const rankById = useMemo(() => {
+    const r = {}
+    let i = 0
+    for (const t of sortedTeams) if (priceByTeam[t.id] != null) r[t.id] = ++i
+    return r
+  }, [sortedTeams, priceByTeam])
 
   const visibleTeams = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -620,6 +573,18 @@ export default function Market() {
     }
     return list
   }, [sortedTeams, search, filter, priceByTeam, prevPriceByTeam])
+
+  const tickerItems = useMemo(() => {
+    if (!hasAnyPrice) return []
+    if (hasAnyDelta) {
+      return sortedTeams
+        .filter(t => prevPriceByTeam[t.id] != null && priceByTeam[t.id] !== prevPriceByTeam[t.id])
+        .map(t => ({ team: t, price: priceByTeam[t.id], pct: ((priceByTeam[t.id] - prevPriceByTeam[t.id]) / prevPriceByTeam[t.id]) * 100 }))
+        .sort((a, b) => Math.abs(b.pct) - Math.abs(a.pct))
+        .slice(0, 14)
+    }
+    return sortedTeams.filter(t => priceByTeam[t.id] != null).slice(0, 14).map(t => ({ team: t, price: priceByTeam[t.id], pct: null }))
+  }, [sortedTeams, priceByTeam, prevPriceByTeam, hasAnyPrice, hasAnyDelta])
 
   const chips = [
     { key: 'all', label: 'All' },
@@ -669,7 +634,9 @@ export default function Market() {
     )
   }
 
+  function openSheet(team) { setSheetTeam(team) }
   function openTrade(team, side) {
+    setSheetTeam(null)
     setTradeTeam(team)
     setTradeSide(side)
     setTradeError(null)
@@ -687,68 +654,47 @@ export default function Market() {
   const lastSettledLabel = lastSettledAt
     ? lastSettledAt.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
     : null
+  const hasTicker = tickerItems.length > 0
+  const stickTop = hasTicker ? '83px' : '53px'
+
+  const myHeld = sortedTeams.filter(t => heldById[t.id] > 0)
+    .sort((a, b) => (heldById[b.id] * (priceByTeam[b.id] ?? 0)) - (heldById[a.id] * (priceByTeam[a.id] ?? 0)))
+  const totalCost = myHeld.reduce((s, t) => s + heldById[t.id] * (costBasis[t.id]?.avgCost ?? 0), 0)
+  const unrealized = holdingsVal - totalCost
+  const unrealizedPct = totalCost > 0 ? (unrealized / totalCost) * 100 : 0
 
   return (
     <>
-    {/* First-login profile setup (editing later happens from the "Me" menu in the nav bar) */}
     {profileLoaded && !profile?.display_name && (
       <ProfileSetup initial={profile} onComplete={p => setProfile(p)} onDismiss={null} />
     )}
 
-    {chartTeam && (
-      <PriceChartModal
-        team={chartTeam}
-        history={historyByTeam[chartTeam.id] ?? []}
-        onClose={() => setChartTeam(null)}
-      />
-    )}
+    <AppBar
+      leagueName={league.name}
+      tradingOpen={tradingOpen}
+      closeAt={closeAt}
+      openAt={openAt}
+      now={now}
+      tickerItems={tickerItems}
+      tickerLabel={hasAnyDelta ? 'Biggest movers since last settle' : 'Top teams by price'}
+      onTickerSelect={openSheet}
+    />
 
-    <div className="page-container">
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 24, color: '#fff', margin: 0 }}>CFB Market</h1>
-            <InfoTooltip />
-          </div>
-          <p style={{ color: 'var(--faint)', fontSize: 12, margin: 0 }}>{league.name}</p>
-        </div>
-        {profile?.display_name && (
-          <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0, fontWeight: 700, textAlign: 'right' }}>
-            {profile.display_name}
-          </p>
-        )}
-      </div>
-
-      {/* Status strip: settle timestamp + window countdown */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginBottom: 16, fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--faint)' }}>
-        <span>{lastSettledLabel ? `Prices as of ${lastSettledLabel}` : 'Prices not set yet'}</span>
-        {tradingOpen && (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <span aria-hidden style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--positive)', boxShadow: '0 0 0 3px var(--positive-soft)' }} />
-            <span style={{ color: 'var(--muted)' }}>Open</span>
-            <span>· closes {formatWeekdayTime(closeAt)} · in {formatCountdown(closeAt, now)}</span>
-          </span>
-        )}
-      </div>
-
+    <div className="page-container" style={{ '--stick-top': stickTop, paddingTop: 12 }}>
       {!tradingOpen && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderRadius: 'var(--r-md)', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', marginBottom: 16 }}>
-          <span style={{ fontSize: 18 }}>🔒</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 'var(--r-md)', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', marginBottom: 12 }}>
+          <span style={{ fontSize: 16 }}>🔒</span>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontWeight: 900, color: 'var(--accent)', fontSize: 14, margin: 0 }}>Market Closed for Gameday</p>
-            <p style={{ color: 'var(--muted)', fontSize: 12, margin: 0 }}>
-              Reopens {formatShortDate(openAt)} at {openAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} once prices settle.
+            <p style={{ fontWeight: 900, color: 'var(--accent)', fontSize: 13, margin: 0 }}>Market closed for gameday</p>
+            <p style={{ color: 'var(--muted)', fontSize: 11.5, margin: 0 }}>
+              Reopens {formatShortDate(openAt)} at {openAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} after prices settle · in {formatCountdown(openAt, now)}
             </p>
-          </div>
-          <div style={{ textAlign: 'right', flexShrink: 0 }}>
-            <p style={{ fontFamily: 'var(--font-mono)', fontWeight: 900, fontSize: 16, color: '#fff', margin: 0 }}>{formatCountdown(openAt, now)}</p>
-            <p style={{ fontSize: 10, color: 'var(--faint)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.08em' }}>until open</p>
           </div>
         </div>
       )}
 
       {tradeSuccess && (
-        <div style={{ padding: '12px 16px', borderRadius: 'var(--r-sm)', background: 'var(--positive-soft)', color: 'var(--positive)', border: '1px solid var(--positive-line)', fontSize: 14, fontWeight: 600, marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
+        <div style={{ padding: '10px 14px', borderRadius: 'var(--r-sm)', background: 'var(--positive-soft)', color: 'var(--positive)', border: '1px solid var(--positive-line)', fontSize: 13, fontWeight: 600, marginBottom: 12, display: 'flex', justifyContent: 'space-between' }}>
           {tradeSuccess}
           <button onClick={() => setTradeSuccess(null)} aria-label="Dismiss" style={{ background: 'none', border: 'none', color: 'inherit', opacity: 0.6, cursor: 'pointer' }}>✕</button>
         </div>
@@ -757,117 +703,147 @@ export default function Market() {
       <PortfolioBar cash={cash} holdingsVal={holdingsVal} startCash={startCash} />
 
       {!hasAnyPrice && (
-        <div className="card" style={{ padding: 16, marginBottom: 20, display: 'flex', gap: 12, borderColor: 'rgba(245,158,11,0.2)', background: 'rgba(245,158,11,0.04)' }}>
+        <div className="card" style={{ padding: 16, marginBottom: 16, display: 'flex', gap: 12, borderColor: 'rgba(245,158,11,0.2)', background: 'rgba(245,158,11,0.04)' }}>
           <span style={{ fontSize: 18 }}>⏳</span>
           <div>
-            <p style={{ fontWeight: 700, color: '#fff', fontSize: 14, marginBottom: 4 }}>Preseason — Prices Not Yet Set</p>
+            <p style={{ fontWeight: 700, color: '#fff', fontSize: 14, marginBottom: 4 }}>Preseason — prices not yet set</p>
             <p style={{ color: 'var(--muted)', fontSize: 13 }}>Prices settle each Monday once the season starts.</p>
           </div>
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 4, marginBottom: 16, background: 'var(--surface-2)', padding: 4, borderRadius: 'var(--r-sm)' }}>
-        {TABS.map(t => (
-          <button key={t.key} onClick={() => changeTab(t.key)} style={{ flex: 1, padding: '8px 4px', borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 800, fontSize: 13, background: tab === t.key ? 'var(--surface-3)' : 'transparent', color: tab === t.key ? '#fff' : 'var(--muted)', transition: 'all 0.15s' }}>
-            {t.label}
-          </button>
-        ))}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, margin: '-6px 0 6px', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--faint)' }}>
+        <span>{lastSettledLabel ? `Prices as of ${lastSettledLabel}` : 'Prices not set yet'}</span>
+        <InfoTooltip />
+      </div>
+
+      <div className="sticky-tabs">
+        <div style={{ display: 'flex', gap: 4, background: 'var(--surface-2)', padding: 4, borderRadius: 'var(--r-sm)', marginBottom: tab === 'market' ? 8 : 0 }}>
+          {TABS.map(t => (
+            <button key={t.key} onClick={() => changeTab(t.key)} style={{ flex: 1, padding: '8px 4px', borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 800, fontSize: 13, fontFamily: 'inherit', background: tab === t.key ? 'var(--surface-3)' : 'transparent', color: tab === t.key ? '#fff' : 'var(--muted)', transition: 'all 0.15s' }}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+        {tab === 'market' && (
+          <MarketFilters search={search} onSearch={setSearch} filter={filter} onFilter={setFilter} chips={chips} />
+        )}
       </div>
 
       {tab === 'market' && (
-        <>
-          <MarketFilters search={search} onSearch={setSearch} filter={filter} onFilter={setFilter} chips={chips} />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {sortedTeams.length === 0 && <p style={{ color: 'var(--muted)', fontSize: 14, textAlign: 'center', padding: 32 }}>No teams yet.</p>}
-            {sortedTeams.length > 0 && visibleTeams.length === 0 && (
-              <div className="card" style={{ padding: 24, textAlign: 'center', borderStyle: 'dashed' }}>
-                <p style={{ color: 'var(--muted)', fontSize: 14, margin: 0 }}>
-                  {search ? `No teams match “${search.trim()}”.` : filter === 'movers' ? 'No price moves yet — check back after the next settle.' : 'Nothing here yet.'}
-                </p>
-                {(search || filter !== 'all') && (
-                  <button type="button" className="btn btn--ghost" style={{ marginTop: 12, fontSize: 12, padding: '8px 14px' }} onClick={() => { setSearch(''); setFilter('all') }}>Clear filters</button>
-                )}
-              </div>
-            )}
-            {visibleTeams.map(team => (
-              <MarketRow key={team.id} team={team}
-                price={priceByTeam[team.id] ?? null}
-                prevPrice={prevPriceByTeam[team.id] ?? null}
-                history={historyByTeam[team.id] ?? []}
-                holdings={holdings} cash={cash} priceByTeam={priceByTeam}
-                tradingOpen={tradingOpen} onTrade={openTrade} onChart={setChartTeam} showPosition={false} />
-            ))}
-            {visibleTeams.length > 0 && visibleTeams.length < sortedTeams.length && (
-              <p style={{ fontSize: 11, color: 'var(--faint)', textAlign: 'center', margin: '8px 0 0', fontFamily: 'var(--font-mono)' }}>
-                Showing {visibleTeams.length} of {sortedTeams.length} teams
+        <div style={{ marginTop: 4 }}>
+          {sortedTeams.length === 0 && <p style={{ color: 'var(--muted)', fontSize: 14, textAlign: 'center', padding: 32 }}>No teams yet.</p>}
+          {sortedTeams.length > 0 && visibleTeams.length === 0 && (
+            <div className="card" style={{ padding: 24, textAlign: 'center', borderStyle: 'dashed' }}>
+              <p style={{ color: 'var(--muted)', fontSize: 14, margin: 0 }}>
+                {search ? `No teams match “${search.trim()}”.` : filter === 'movers' ? 'No price moves yet — check back after the next settle.' : 'Nothing here yet.'}
               </p>
-            )}
-          </div>
-        </>
+              {(search || filter !== 'all') && (
+                <button type="button" className="btn btn--ghost" style={{ marginTop: 12, fontSize: 12, padding: '8px 14px' }} onClick={() => { setSearch(''); setFilter('all') }}>Clear filters</button>
+              )}
+            </div>
+          )}
+          {visibleTeams.length > 0 && (
+            <div className="table">
+              <div className="table__head">
+                <span>#</span><span>Team</span><span style={{ textAlign: 'center' }}>Trend</span><span className="text-right">Price · Chg</span>
+              </div>
+              {visibleTeams.map(team => (
+                <TableRow key={team.id} team={team}
+                  rank={rankById[team.id]}
+                  price={priceByTeam[team.id] ?? null}
+                  prevPrice={prevPriceByTeam[team.id] ?? null}
+                  history={historyByTeam[team.id] ?? []}
+                  held={heldById[team.id] ?? 0}
+                  onOpen={openSheet} />
+              ))}
+            </div>
+          )}
+          {visibleTeams.length > 0 && visibleTeams.length < sortedTeams.length && (
+            <p className="num" style={{ fontSize: 11, color: 'var(--faint)', textAlign: 'center', margin: '10px 0 0' }}>
+              Showing {visibleTeams.length} of {sortedTeams.length} teams
+            </p>
+          )}
+          <p style={{ fontSize: 11, color: 'var(--faint)', textAlign: 'center', margin: '14px 0 0' }}>Tap a team to see its chart and trade.</p>
+        </div>
       )}
 
-      {tab === 'portfolio' && (() => {
-        const myHeld = sortedTeams
-          .filter(t => holdings.some(h => h.team_id === t.id))
-          .sort((a, b) => {
-            const av = (holdings.find(h => h.team_id === a.id)?.shares ?? 0) * (priceByTeam[a.id] ?? 0)
-            const bv = (holdings.find(h => h.team_id === b.id)?.shares ?? 0) * (priceByTeam[b.id] ?? 0)
-            return bv - av
-          })
-        if (myHeld.length === 0) {
-          return (
+      {tab === 'portfolio' && (
+        <div style={{ marginTop: 4 }}>
+          {myHeld.length === 0 ? (
             <div className="card" style={{ padding: 32, textAlign: 'center', borderStyle: 'dashed' }}>
               <p style={{ fontSize: 28, marginBottom: 12 }}>📊</p>
               <p style={{ fontWeight: 900, color: '#fff', marginBottom: 6 }}>No positions yet</p>
-              <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 16 }}>Head to Market to buy your first shares.</p>
+              <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 16 }}>Head to Market and tap a team to buy your first shares.</p>
               <button type="button" className="btn btn--accent" onClick={() => changeTab('market')}>Browse teams</button>
             </div>
-          )
-        }
-        const totalCost = myHeld.reduce((s, t) => {
-          const held = holdings.find(h => h.team_id === t.id)?.shares ?? 0
-          return s + held * (costBasis[t.id]?.avgCost ?? 0)
-        }, 0)
-        const unrealized = holdingsVal - totalCost
-        const unrealizedPct = totalCost > 0 ? (unrealized / totalCost) * 100 : 0
-        return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: 'var(--r-sm)', background: 'var(--surface-2)', border: '1px solid var(--line)' }}>
-              <div>
-                <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--faint)', margin: 0 }}>Unrealized gain / loss</p>
-                <p style={{ fontSize: 11, color: 'var(--faint)', margin: 0, fontFamily: 'var(--font-mono)' }}>cost {fmt(totalCost)} · now {fmt(holdingsVal)}</p>
+          ) : (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: 'var(--r-sm)', background: 'var(--surface-2)', border: '1px solid var(--line)', marginBottom: 8 }}>
+                <div>
+                  <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--faint)', margin: 0 }}>Unrealized gain / loss</p>
+                  <p className="num" style={{ fontSize: 11, color: 'var(--faint)', margin: 0 }}>cost {fmt(totalCost)} · now {fmt(holdingsVal)}</p>
+                </div>
+                <p className="num" style={{ fontWeight: 900, fontSize: 16, margin: 0, color: toneColor(unrealized) }}>
+                  {fmtSignedMoney(unrealized)} <span style={{ fontSize: 11 }}>({fmtPct(unrealizedPct)})</span>
+                </p>
               </div>
-              <p style={{ fontFamily: 'var(--font-mono)', fontWeight: 900, fontSize: 16, margin: 0, color: toneColor(unrealized) }}>
-                {fmtSignedMoney(unrealized)} <span style={{ fontSize: 11 }}>({fmtPct(unrealizedPct)})</span>
-              </p>
-            </div>
-            {myHeld.map(team => (
-              <MarketRow key={team.id} team={team}
-                price={priceByTeam[team.id] ?? null}
-                prevPrice={prevPriceByTeam[team.id] ?? null}
-                history={historyByTeam[team.id] ?? []}
-                holdings={holdings} cash={cash} priceByTeam={priceByTeam}
-                tradingOpen={tradingOpen} onTrade={openTrade} onChart={setChartTeam} showPosition={true}
-                basis={costBasis[team.id]} />
-            ))}
-          </div>
-        )
-      })()}
+              <div className="table">
+                <div className="table__head" style={{ gridTemplateColumns: 'minmax(0, 1fr) 96px 96px' }}>
+                  <span>Position</span><span className="text-right">Value · Price</span><span className="text-right">Gain / loss</span>
+                </div>
+                {myHeld.map(team => (
+                  <PositionRow key={team.id} team={team}
+                    rank={rankById[team.id]}
+                    price={priceByTeam[team.id] ?? null}
+                    prevPrice={prevPriceByTeam[team.id] ?? null}
+                    held={heldById[team.id]}
+                    basis={costBasis[team.id]}
+                    onOpen={openSheet} />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {tab === 'leaderboard' && (
-        <>
+        <div style={{ marginTop: 4 }}>
           <LeaderboardTab
             accounts={leaderAccounts}
             allHoldings={leaderHoldings}
             priceByTeam={priceByTeam}
+            prevPriceByTeam={prevPriceByTeam}
+            hasAnyDelta={hasAnyDelta}
             members={members}
+            teamsById={teamsById}
             currentUserId={user?.id}
             startCash={startCash}
           />
-          <ActivityFeed transactions={leagueTx} teams={teams} members={members} currentUserId={user?.id} now={now} />
-        </>
+          <ActivityFeed transactions={leagueTx} teamsById={teamsById} members={members} currentUserId={user?.id} now={now} onOpen={openSheet} />
+        </div>
       )}
     </div>
+
+    {sheetTeam && (
+      <TeamSheet
+        team={sheetTeam}
+        rank={rankById[sheetTeam.id]}
+        price={priceByTeam[sheetTeam.id] ?? null}
+        prevPrice={prevPriceByTeam[sheetTeam.id] ?? null}
+        fpi={fpiByTeam[sheetTeam.id] ?? null}
+        history={historyByTeam[sheetTeam.id] ?? []}
+        held={heldById[sheetTeam.id] ?? 0}
+        basis={costBasis[sheetTeam.id]}
+        cash={cash}
+        holdings={holdings}
+        priceByTeam={priceByTeam}
+        tradingOpen={tradingOpen}
+        onBuy={t => openTrade(t, 'buy')}
+        onSell={t => openTrade(t, 'sell')}
+        onClose={() => setSheetTeam(null)}
+      />
+    )}
 
     {tradeTeam && (
       <TradeModal
