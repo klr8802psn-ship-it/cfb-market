@@ -36,6 +36,19 @@ export function validateBuy({ cash, holdings, priceByTeam, teamId, shares }) {
   return { ok: true }
 }
 
+// Largest buy that satisfies both the cash constraint and the position cap.
+// Buying converts cash → shares at the same price, so portfolio value is unchanged by the trade,
+// which makes the cap a simple closed form.
+export function maxBuyShares({ cash, holdings, priceByTeam, teamId }) {
+  const price = priceByTeam[teamId] ?? 0
+  if (price <= 0) return 0
+  const held = holdings.find(h => h.team_id === teamId)?.shares ?? 0
+  const portfolio = portfolioValue({ cash, holdings, priceByTeam })
+  const byCash = Math.floor(cash / price)
+  const byCap = Math.floor((POSITION_CAP * portfolio + 1e-9) / price) - held
+  return Math.max(0, Math.min(byCash, byCap))
+}
+
 export function validateSell({ holdings, teamId, shares }) {
   if (!Number.isInteger(shares) || shares <= 0)
     return { ok: false, reason: 'shares must be a positive integer' }

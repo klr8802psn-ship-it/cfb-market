@@ -24,9 +24,6 @@ export default function AdminLeague() {
   const [toggleBusy, setToggleBusy] = useState(false)
   const [settleBusy, setSettleBusy] = useState(false)
   const [settleResult, setSettleResult] = useState(null)
-  const [kickoffDate, setKickoffDate] = useState('')   // "YYYY-MM-DDTHH:MM"
-  const [kickoffBusy, setKickoffBusy] = useState(false)
-  const [kickoffResult, setKickoffResult] = useState(null)
 
   useEffect(() => {
     if (!isPlatformAdmin) return
@@ -85,52 +82,6 @@ export default function AdminLeague() {
     setSettleBusy(false)
   }
 
-  async function addKickoff() {
-    if (!kickoffDate || !cfg) return
-    setKickoffBusy(true)
-    setKickoffResult(null)
-
-    // Find or create a published week for this season
-    // Use week_number 1 for simplicity (the cron only needs ≥1 published week with games)
-    // In practice, create a new week per game-wave so admins can see them separately
-    const lockTime = new Date(kickoffDate).toISOString()
-    const weekLabel = `Kickoff ${kickoffDate.split('T')[0]}`
-
-    // Check if a week already exists for this label to avoid duplicates
-    const { data: existingWeek } = await supabase
-      .from('weeks')
-      .select('id')
-      .eq('season_id', cfg.season_id)
-      .eq('league_id', leagueId)
-      .eq('label', weekLabel)
-      .maybeSingle()
-
-    let weekId = existingWeek?.id
-    if (!weekId) {
-      // Count existing weeks to assign week_number
-      const { count } = await supabase.from('weeks').select('id', { count: 'exact', head: true }).eq('season_id', cfg.season_id).eq('league_id', leagueId)
-      const { data: newWeek, error: weekErr } = await supabase
-        .from('weeks')
-        .insert({ season_id: cfg.season_id, league_id: leagueId, week_number: (count ?? 0) + 1, label: weekLabel, status: 'published' })
-        .select('id')
-        .maybeSingle()
-      if (weekErr) { setKickoffResult(`Failed to create week: ${weekErr.message}`); setKickoffBusy(false); return }
-      weekId = newWeek.id
-    }
-
-    // Insert a stub game with the lock_time
-    const { error: gameErr } = await supabase.from('games').insert({
-      week_id: weekId,
-      home_team: 'CFB Kickoff Wave',
-      away_team: 'CFB Kickoff Wave',
-      lock_time: lockTime,
-    })
-
-    if (gameErr) { setKickoffResult(`Failed to create kickoff: ${gameErr.message}`); setKickoffBusy(false); return }
-    setKickoffResult(`Kickoff wave scheduled for ${new Date(lockTime).toLocaleString()}.`)
-    setKickoffDate('')
-    setKickoffBusy(false)
-  }
 
   if (loading) {
     return <div style={{ padding: 32, color: 'var(--muted)' }}>Loading…</div>
@@ -177,7 +128,7 @@ export default function AdminLeague() {
               {cfg?.trading_open ? 'Players can buy and sell.' : 'Trading paused until next settle.'}
             </p>
           </div>
-          <button onClick={toggleTrading} disabled={toggleBusy} className="btn" style={{ padding: '8px 16px', background: cfg?.trading_open ? 'rgba(255,107,122,0.12)' : 'rgba(56,217,130,0.12)', color: cfg?.trading_open ? '#ff6b7a' : '#38D982', border: `1px solid ${cfg?.trading_open ? 'rgba(255,107,122,0.3)' : 'rgba(56,217,130,0.3)'}`, fontSize: 12 }}>
+          <button onClick={toggleTrading} disabled={toggleBusy} className="btn" style={{ padding: '8px 16px', background: cfg?.trading_open ? 'var(--negative-soft)' : 'var(--positive-soft)', color: cfg?.trading_open ? 'var(--negative)' : 'var(--positive)', border: `1px solid ${cfg?.trading_open ? 'rgba(255,107,122,0.3)' : 'var(--positive-line)'}`, fontSize: 12 }}>
             {cfg?.trading_open ? 'Close' : 'Open'}
           </button>
         </div>
@@ -193,27 +144,12 @@ export default function AdminLeague() {
               {cfg?.is_public ? 'Shows on the public leaderboard page.' : 'Hidden from the public leaderboard.'}
             </p>
           </div>
-          <button onClick={togglePublic} disabled={toggleBusy} className="btn" style={{ padding: '8px 16px', background: cfg?.is_public ? 'rgba(255,107,122,0.12)' : 'rgba(56,217,130,0.12)', color: cfg?.is_public ? '#ff6b7a' : '#38D982', border: `1px solid ${cfg?.is_public ? 'rgba(255,107,122,0.3)' : 'rgba(56,217,130,0.3)'}`, fontSize: 12 }}>
+          <button onClick={togglePublic} disabled={toggleBusy} className="btn" style={{ padding: '8px 16px', background: cfg?.is_public ? 'var(--negative-soft)' : 'var(--positive-soft)', color: cfg?.is_public ? 'var(--negative)' : 'var(--positive)', border: `1px solid ${cfg?.is_public ? 'rgba(255,107,122,0.3)' : 'var(--positive-line)'}`, fontSize: 12 }}>
             {cfg?.is_public ? 'Make Private' : 'Make Public'}
           </button>
         </div>
       </Section>
 
-      <Section title="Kickoff Setter">
-        <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>
-          Set a kickoff time — the auto-lock cron will close trading when this time arrives.
-        </p>
-        <div className="card" style={{ padding: 16 }}>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-            <input type="datetime-local" value={kickoffDate} onChange={e => setKickoffDate(e.target.value)}
-              style={{ flex: 1, padding: '10px 12px', borderRadius: 8, background: 'var(--surface-3)', border: '1px solid var(--line-2)', color: '#fff', fontSize: 14, outline: 'none' }} />
-            <button onClick={addKickoff} disabled={kickoffBusy || !kickoffDate} className="btn btn--accent" style={{ flexShrink: 0, padding: '10px 16px', fontSize: 13 }}>
-              {kickoffBusy ? '…' : 'Add'}
-            </button>
-          </div>
-          {kickoffResult && <p style={{ fontSize: 13, color: 'var(--positive)', margin: 0 }}>{kickoffResult}</p>}
-        </div>
-      </Section>
 
       <Section title="Settle Prices">
         <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>

@@ -53,7 +53,7 @@ export default function ProfileSetup({ onComplete, onDismiss, initial }) {
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div>
             <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
-              Display Name <span style={{ color: '#F59E0B' }}>*</span>
+              Display Name <span style={{ color: 'var(--accent)' }}>*</span>
             </label>
             <input
               style={inputStyle}
@@ -77,7 +77,7 @@ export default function ProfileSetup({ onComplete, onDismiss, initial }) {
             />
           </div>
 
-          {err && <p style={{ fontSize: 13, color: '#f87171', margin: 0 }}>{err}</p>}
+          {err && <p style={{ fontSize: 13, color: 'var(--negative)', margin: 0 }}>{err}</p>}
 
           <button type="submit" className="btn btn--accent" disabled={busy || !displayName.trim()} style={{ width: '100%', marginTop: 4 }}>
             {busy ? 'Saving…' : "Let's Go"}

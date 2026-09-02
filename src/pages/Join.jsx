@@ -41,7 +41,7 @@ export default function Join() {
         <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 20 }}>
           This invite link doesn't work. Ask your league admin for a new one.
         </p>
-        <Link to="/" style={{ fontSize: 13, fontWeight: 700, color: '#F59E0B', textDecoration: 'none' }}>← Back to homepage</Link>
+        <Link to="/" style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)', textDecoration: 'none' }}>← Back to homepage</Link>
       </div>
     )
   }

@@ -202,7 +202,7 @@ function MarketRow({ team, price, prevPrice, history, holdings, cash, priceByTea
     : null
 
   return (
-    <div className="card" style={{ padding: 12, display: 'flex', alignItems: 'center', gap: 12, minHeight: 60 }}>
+    <div className="card row-card" style={{ padding: 12, display: 'flex', alignItems: 'center', gap: 12, minHeight: 60 }}>
       <TeamMark color={team.primary_color} abbr={team.abbreviation} size="md" />
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ fontWeight: 700, color: '#fff', fontSize: 14, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{team.name}</p>
@@ -346,11 +346,95 @@ function LeaderboardTab({ accounts, allHoldings, priceByTeam, members, currentUs
   )
 }
 
+// ── League activity feed ──────────────────────────────────────────────────────
+function relativeTime(iso, now) {
+  const ms = now - new Date(iso)
+  const min = Math.floor(ms / 60000)
+  if (min < 1) return 'just now'
+  if (min < 60) return `${min}m ago`
+  const hrs = Math.floor(min / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  if (days < 7) return `${days}d ago`
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+function ActivityFeed({ transactions, teams, members, currentUserId, now }) {
+  const teamById = useMemo(() => Object.fromEntries(teams.map(t => [t.id, t])), [teams])
+  const nameById = useMemo(() => Object.fromEntries(members.map(m => [m.user_id, m.display_name])), [members])
+  if (!transactions.length) return null
+
+  return (
+    <div style={{ marginTop: 28 }}>
+      <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.12em', color: 'var(--faint)', textTransform: 'uppercase', marginBottom: 10 }}>
+        Recent trades
+      </p>
+      <div className="card" style={{ padding: '4px 0' }}>
+        {transactions.map((tx, i) => {
+          const team = teamById[tx.team_id]
+          const isBuy = tx.side === 'buy'
+          const isMe = tx.user_id === currentUserId
+          const who = isMe ? 'You' : (nameById[tx.user_id] ?? 'Someone')
+          return (
+            <div key={`${tx.created_at}-${tx.user_id}-${tx.team_id}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderTop: i === 0 ? 'none' : '1px solid var(--line)' }}>
+              {team ? <TeamMark color={team.primary_color} abbr={team.abbreviation} size="sm" /> : <div style={{ width: 28, height: 28 }} />}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 13, color: '#fff', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <span style={{ fontWeight: 800, color: isMe ? 'var(--accent)' : '#fff' }}>{who}</span>
+                  {' '}<span style={{ color: isBuy ? 'var(--positive)' : 'var(--negative)', fontWeight: 800 }}>{isBuy ? 'bought' : 'sold'}</span>
+                  {' '}{tx.shares} sh {team?.name ?? 'a team'}
+                </p>
+                <p style={{ fontSize: 10, color: 'var(--faint)', margin: 0, fontFamily: 'var(--font-mono)' }}>
+                  @ {fmtPrice(tx.price)} · {fmt(Number(tx.shares) * Number(tx.price))} · {relativeTime(tx.created_at, now)}
+                </p>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ── Loading skeleton ──────────────────────────────────────────────────────────
+function MarketSkeleton() {
+  return (
+    <div className="page-container" aria-busy="true" aria-label="Loading market">
+      <div style={{ marginBottom: 16 }}>
+        <div className="skeleton" style={{ height: 26, width: 150, marginBottom: 6 }} />
+        <div className="skeleton" style={{ height: 11, width: 90 }} />
+      </div>
+      <div className="skeleton" style={{ height: 11, width: '60%', marginBottom: 16 }} />
+      <div className="card card--raised" style={{ padding: 20, marginBottom: 20 }}>
+        <div className="skeleton" style={{ height: 10, width: 90, marginBottom: 16 }} />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <div><div className="skeleton" style={{ height: 9, width: 40, marginBottom: 6 }} /><div className="skeleton" style={{ height: 20, width: 100 }} /></div>
+          <div><div className="skeleton" style={{ height: 9, width: 50, marginBottom: 6 }} /><div className="skeleton" style={{ height: 20, width: 100 }} /></div>
+        </div>
+      </div>
+      <div className="skeleton" style={{ height: 38, marginBottom: 16, borderRadius: 'var(--r-sm)' }} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {Array.from({ length: 7 }).map((_, i) => (
+          <div key={i} className="card" style={{ padding: 12, display: 'flex', alignItems: 'center', gap: 12, minHeight: 60 }}>
+            <div className="skeleton" style={{ width: 36, height: 36, borderRadius: 10 }} />
+            <div style={{ flex: 1 }}>
+              <div className="skeleton" style={{ height: 12, width: `${45 + (i % 3) * 12}%`, marginBottom: 6 }} />
+              <div className="skeleton" style={{ height: 9, width: '25%' }} />
+            </div>
+            <div className="skeleton" style={{ height: 14, width: 52 }} />
+            <div className="skeleton" style={{ height: 28, width: 92, borderRadius: 8 }} />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── Main Market page ──────────────────────────────────────────────────────────
 const TAB_KEYS = ['market', 'portfolio', 'leaderboard']
 
 export default function Market() {
-  const { user, signOut } = useAuth()
+  const { user, signOut, profile, profileLoaded, setProfile } = useAuth()
   const { league, config, memberLoading, memberError } = useLeague()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -370,6 +454,7 @@ export default function Market() {
   const [leaderAccounts, setLeaderAccounts] = useState([])
   const [leaderHoldings, setLeaderHoldings] = useState([])
   const [members, setMembers] = useState([])
+  const [leagueTx, setLeagueTx] = useState([])   // recent trades across the league (activity feed)
 
   // Search / filter
   const [search, setSearch] = useState('')
@@ -386,10 +471,6 @@ export default function Market() {
     setTab(TAB_KEYS.includes(requestedTab) ? requestedTab : 'market')
   }, [requestedTab])
 
-  // Profile setup
-  const [profile, setProfile] = useState(null)
-  const [profileLoaded, setProfileLoaded] = useState(false)
-
   // Trade modal
   const [tradeTeam, setTradeTeam] = useState(null)
   const [tradeSide, setTradeSide] = useState('buy')
@@ -399,17 +480,6 @@ export default function Market() {
 
   // Price chart modal
   const [chartTeam, setChartTeam] = useState(null)
-
-  // Profile edit modal + dropdown
-  const [editingProfile, setEditingProfile] = useState(false)
-  const [profileMenuOpen, setProfileMenuOpen] = useState(false)
-
-  // Fetch profile separately (fast, needed for setup check)
-  useEffect(() => {
-    if (!user) return
-    supabase.from('users').select('display_name, ob_handle').eq('id', user.id).maybeSingle()
-      .then(({ data }) => { setProfile(data); setProfileLoaded(true) })
-  }, [user?.id])
 
   useEffect(() => {
     if (!config || !user || !league) { setLoading(false); return }
@@ -427,16 +497,18 @@ export default function Market() {
       supabase.from('stock_holdings').select('user_id, team_id, shares').eq('league_id', league.id).eq('season_id', seasonId),
       supabase.from('league_members').select('user_id, user:users(display_name, ob_handle)').eq('league_id', league.id),
       supabase.from('stock_transactions').select('team_id, side, shares, price, created_at').eq('league_id', league.id).eq('season_id', seasonId).eq('user_id', user.id),
+      supabase.from('stock_transactions').select('user_id, team_id, side, shares, price, created_at').eq('league_id', league.id).eq('season_id', seasonId).order('created_at', { ascending: false }).limit(30),
     ]).then(results => {
       const failed = results.find(result => result.error)
       if (failed) throw failed.error
       const [
         { data: acct }, { data: myHoldings }, { data: teamRows }, { data: allPrices },
-        { data: leagueAccts }, { data: leagueHoldings }, { data: leagueMembers }, { data: myTx },
+        { data: leagueAccts }, { data: leagueHoldings }, { data: leagueMembers }, { data: myTx }, { data: recentTx },
       ] = results
       setCash(acct?.cash != null ? Number(acct.cash) : startCash)
       setHoldings((myHoldings ?? []).filter(h => h.shares > 0))
       setTransactions(myTx ?? [])
+      setLeagueTx(recentTx ?? [])
       setTeams(teamRows ?? [])
 
       const prices = allPrices ?? []
@@ -475,14 +547,21 @@ export default function Market() {
     if (!config || !user || !league) return
     const seasonId = config.season_id
     const startCash = config.start_cash ?? STOCK_START_CASH
+    // Refresh everything a trade can change: my account + the league leaderboard + the activity feed.
     Promise.all([
       supabase.from('stock_accounts').select('cash').eq('league_id', league.id).eq('season_id', seasonId).eq('user_id', user.id).maybeSingle(),
       supabase.from('stock_holdings').select('team_id, shares').eq('league_id', league.id).eq('season_id', seasonId).eq('user_id', user.id),
       supabase.from('stock_transactions').select('team_id, side, shares, price, created_at').eq('league_id', league.id).eq('season_id', seasonId).eq('user_id', user.id),
-    ]).then(([{ data: acct }, { data: myHoldings }, { data: myTx }]) => {
+      supabase.from('stock_accounts').select('user_id, cash').eq('league_id', league.id).eq('season_id', seasonId),
+      supabase.from('stock_holdings').select('user_id, team_id, shares').eq('league_id', league.id).eq('season_id', seasonId),
+      supabase.from('stock_transactions').select('user_id, team_id, side, shares, price, created_at').eq('league_id', league.id).eq('season_id', seasonId).order('created_at', { ascending: false }).limit(30),
+    ]).then(([{ data: acct }, { data: myHoldings }, { data: myTx }, { data: leagueAccts }, { data: leagueHoldings }, { data: recentTx }]) => {
       setCash(acct?.cash != null ? Number(acct.cash) : startCash)
       setHoldings((myHoldings ?? []).filter(h => h.shares > 0))
       setTransactions(myTx ?? [])
+      if (leagueAccts) setLeaderAccounts(leagueAccts)
+      if (leagueHoldings) setLeaderHoldings(leagueHoldings.filter(h => h.shares > 0))
+      if (recentTx) setLeagueTx(recentTx)
     })
   }
 
@@ -555,12 +634,7 @@ export default function Market() {
   const openAt = nextOpen(now)
 
   if (memberLoading || loading) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
-        <div style={{ width: 24, height: 24, borderRadius: '50%', border: '2px solid var(--accent-line)', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      </div>
-    )
+    return <MarketSkeleton />
   }
 
   if (memberError) {
@@ -619,8 +693,9 @@ export default function Market() {
 
   return (
     <>
-    {profileLoaded && (!profile?.display_name || editingProfile) && (
-      <ProfileSetup initial={profile} onComplete={p => { setProfile(p); setEditingProfile(false) }} onDismiss={profile?.display_name ? () => setEditingProfile(false) : null} />
+    {/* First-login profile setup (editing later happens from the "Me" menu in the nav bar) */}
+    {profileLoaded && !profile?.display_name && (
+      <ProfileSetup initial={profile} onComplete={p => setProfile(p)} onDismiss={null} />
     )}
 
     {chartTeam && (
@@ -640,28 +715,11 @@ export default function Market() {
           </div>
           <p style={{ color: 'var(--faint)', fontSize: 12, margin: 0 }}>{league.name}</p>
         </div>
-        <div style={{ position: 'relative' }}>
-          <button
-            onClick={() => setProfileMenuOpen(v => !v)}
-            style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 8, padding: '6px 12px', color: 'var(--muted)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
-          >
-            {profile?.display_name ?? 'Profile'} ▾
-          </button>
-          {profileMenuOpen && (
-            <>
-              <div onClick={() => setProfileMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 49 }} />
-              <div style={{ position: 'absolute', right: 0, top: '110%', background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 10, overflow: 'hidden', minWidth: 140, zIndex: 50, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
-                <button onClick={() => { setEditingProfile(true); setProfileMenuOpen(false) }} style={{ display: 'block', width: '100%', padding: '12px 16px', background: 'none', border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}>
-                  Edit Profile
-                </button>
-                <div style={{ height: 1, background: 'var(--line)' }} />
-                <button onClick={() => supabase.auth.signOut()} style={{ display: 'block', width: '100%', padding: '12px 16px', background: 'none', border: 'none', color: 'var(--negative)', fontSize: 13, fontWeight: 700, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}>
-                  Sign Out
-                </button>
-              </div>
-            </>
-          )}
-        </div>
+        {profile?.display_name && (
+          <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0, fontWeight: 700, textAlign: 'right' }}>
+            {profile.display_name}
+          </p>
+        )}
       </div>
 
       {/* Status strip: settle timestamp + window countdown */}
@@ -800,14 +858,17 @@ export default function Market() {
       })()}
 
       {tab === 'leaderboard' && (
-        <LeaderboardTab
-          accounts={leaderAccounts}
-          allHoldings={leaderHoldings}
-          priceByTeam={priceByTeam}
-          members={members}
-          currentUserId={user?.id}
-          startCash={startCash}
-        />
+        <>
+          <LeaderboardTab
+            accounts={leaderAccounts}
+            allHoldings={leaderHoldings}
+            priceByTeam={priceByTeam}
+            members={members}
+            currentUserId={user?.id}
+            startCash={startCash}
+          />
+          <ActivityFeed transactions={leagueTx} teams={teams} members={members} currentUserId={user?.id} now={now} />
+        </>
       )}
     </div>
 

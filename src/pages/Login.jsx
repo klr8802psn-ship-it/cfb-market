@@ -85,7 +85,7 @@ export default function Login() {
               style={{
                 flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', cursor: 'pointer',
                 fontSize: 13, fontWeight: 700, fontFamily: 'inherit', transition: 'all 0.15s',
-                background: tab === t ? '#F59E0B' : 'transparent',
+                background: tab === t ? 'var(--accent)' : 'transparent',
                 color: tab === t ? '#000' : 'var(--muted)',
               }}
             >
@@ -97,7 +97,7 @@ export default function Login() {
 
       {notice && (
         <div className="card" style={{ padding: 16, marginBottom: 16, textAlign: 'center' }}>
-          <p style={{ fontSize: 14, color: '#4ade80', margin: 0 }}>{notice}</p>
+          <p style={{ fontSize: 14, color: 'var(--positive)', margin: 0 }}>{notice}</p>
         </div>
       )}
 
@@ -121,7 +121,7 @@ export default function Login() {
           </label>
         )}
 
-        {err && <p style={{ fontSize: 13, color: '#f87171', margin: 0 }}>{err}</p>}
+        {err && <p style={{ fontSize: 13, color: 'var(--negative)', margin: 0 }}>{err}</p>}
 
         <button type="submit" className="btn btn--accent" disabled={busy} style={{ width: '100%', marginTop: 4 }}>
           {busy ? '…' : tab === 'forgot' ? 'Send reset link' : tab === 'signup' ? 'Create account' : 'Sign in'}

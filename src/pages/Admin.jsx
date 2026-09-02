@@ -99,7 +99,7 @@ function CreateLeagueForm({ onCreated }) {
         <label style={labelStyle}>Starting Cash ($)</label>
         <input style={inputStyle} type="number" value={startCash} onChange={e => setStartCash(Number(e.target.value))} min={500} max={100000} step={500} required />
       </div>
-      {err && <p style={{ fontSize: 13, color: '#f87171', margin: 0 }}>{err}</p>}
+      {err && <p style={{ fontSize: 13, color: 'var(--negative)', margin: 0 }}>{err}</p>}
       <button type="submit" className="btn btn--accent" disabled={busy} style={{ width: '100%' }}>
         {busy ? 'Creating…' : 'Create League'}
       </button>
