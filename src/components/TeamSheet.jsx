@@ -65,7 +65,7 @@ function Stat({ label, value, sub, color }) {
 
 export default function TeamSheet({ team, rank, price, prevPrice, fpi, history, held, basis, cash, holdings, priceByTeam, tradingOpen, onBuy, onSell, onClose }) {
   const onCloseRef = useRef(onClose)
-  onCloseRef.current = onClose
+  useEffect(() => { onCloseRef.current = onClose }, [onClose])
 
   // Dismissal: ✕ button, grip tap, backdrop tap, Escape, swipe-down, and the phone's back button.
   useEffect(() => {
