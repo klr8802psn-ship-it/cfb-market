@@ -22,19 +22,18 @@ export default function Leaderboard() {
 
   useEffect(() => {
     setError(null)
+    setLoading(true)
     supabase.rpc('get_public_stock_leagues').then(({ data, error: leagueError }) => {
-      if (leagueError) {
-        setError('We could not load the public leagues. Check your connection and try again.')
-        setLoading(false)
-        return
-      }
-      const list = data ?? []
+      const list = leagueError ? [] : (data ?? [])
       setLeagues(list)
       if (!list.length) { setLoading(false); return }
       const matched = leagueParam ? list.find(l => l.invite_code === leagueParam) : null
       const pick = matched ?? list[0]
       setSelectedId(pick.id)
       setLeagueName(pick.name)
+    }).catch(() => {
+      setLeagues([])
+      setLoading(false)
     })
   }, [leagueParam, reloadKey])
 
@@ -108,6 +107,11 @@ export default function Leaderboard() {
           <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
             <div style={{ width: 24, height: 24, borderRadius: '50%', border: '2px solid rgba(245,158,11,0.5)', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+          </div>
+        ) : leagues.length === 0 ? (
+          <div className="card" style={{ padding: 40, textAlign: 'center' }}>
+            <p style={{ fontSize: 32, margin: '0 0 12px' }}>🏈</p>
+            <p style={{ color: 'var(--muted)', fontSize: 14 }}>No public leagues yet. Join a league with an invite link to get started.</p>
           </div>
         ) : board.length === 0 ? (
           <div className="card" style={{ padding: 40, textAlign: 'center' }}>

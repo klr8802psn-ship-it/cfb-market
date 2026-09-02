@@ -30,6 +30,8 @@ export default function Landing() {
           ['Weekly settle', 'Prices update each Monday after the weekend games.'],
           ['40% cap per team', "Can't put more than 40% of your portfolio in one team."],
           ['Best portfolio wins', 'Final standings at season end determine the champion.'],
+          ['$25 price floor', 'No team can drop below $25, even if data feeds fail.'],
+          ['Trading closes for gameday', "Locks Thursday night before that week's games and reopens Monday after prices settle."],
         ].map(([title, desc]) => (
           <div key={title} style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
             <span style={{ color: 'var(--faint)', marginTop: 2, flexShrink: 0 }}>›</span>
@@ -38,6 +40,9 @@ export default function Landing() {
             </p>
           </div>
         ))}
+        <p style={{ fontSize: 13, color: 'var(--faint)', lineHeight: 1.6, margin: 0, paddingTop: 4 }}>
+          Prices are set by ESPN's FPI and SP+ ratings, with a small demand adjustment (capped at ±8%). Teams that climb the power rankings go up in value — not just teams that win.
+        </p>
       </div>
       </div>
 

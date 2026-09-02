@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
@@ -8,7 +8,6 @@ export default function Join() {
   const { user, loading: authLoading } = useAuth()
   const navigate = useNavigate()
   const [status, setStatus] = useState('loading') // 'loading' | 'joining' | 'error'
-  const [error, setError] = useState(null)
 
   useEffect(() => {
     if (authLoading) return
@@ -23,10 +22,9 @@ export default function Join() {
   async function join() {
     setStatus('joining')
 
-    const { error } = await supabase.rpc('join_stock_league_by_invite_code', { p_code: code })
+    const { data, error } = await supabase.rpc('join_stock_league_by_invite_code', { p_code: code })
 
-    if (error) {
-      setError('Invalid invite link. Ask your commissioner for the correct URL.')
+    if (error || !data || data.length === 0) {
       setStatus('error')
       return
     }
@@ -39,8 +37,11 @@ export default function Join() {
     return (
       <div className="page-container" style={{ paddingTop: 60, textAlign: 'center' }}>
         <p style={{ fontSize: 32, marginBottom: 16 }}>⚠️</p>
-        <p style={{ fontWeight: 700, color: '#fff', marginBottom: 8 }}>Couldn't join</p>
-        <p style={{ color: 'var(--muted)', fontSize: 14 }}>{error}</p>
+        <p style={{ fontWeight: 700, color: '#fff', marginBottom: 8 }}>Invalid or Expired Invite</p>
+        <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 20 }}>
+          This invite link doesn't work. Ask your league admin for a new one.
+        </p>
+        <Link to="/" style={{ fontSize: 13, fontWeight: 700, color: '#F59E0B', textDecoration: 'none' }}>← Back to homepage</Link>
       </div>
     )
   }

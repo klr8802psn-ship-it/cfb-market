@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { validateBuy, validateSell } from '../lib/stocks'
+import { validateBuy, validateSell, portfolioValue, POSITION_CAP } from '../lib/stocks'
 
 function fmt(n) {
   return '$' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -22,6 +22,7 @@ export default function TradeModal({ team, side, cash, holdings, priceByTeam, on
   const maxBuy = price > 0 ? Math.floor(cash / price) : 0
   const maxSell = held
   const maxShares = side === 'buy' ? maxBuy : maxSell
+  const maxPositionAmount = portfolioValue({ cash, holdings, priceByTeam }) * POSITION_CAP
 
   function adjust(delta) {
     setShares(prev => Math.max(1, Math.min(maxShares || 1, prev + delta)))
@@ -45,6 +46,12 @@ export default function TradeModal({ team, side, cash, holdings, priceByTeam, on
             {side === 'buy' ? 'Buy' : 'Sell'}
           </span>
         </div>
+
+        {side === 'buy' && (
+          <p style={{ fontSize: 12, color: 'var(--faint)', marginBottom: 16 }}>
+            Max position: 40% of portfolio ({fmt(maxPositionAmount)} max for this team)
+          </p>
+        )}
 
         {/* Share stepper */}
         <div style={{ marginBottom: 16 }}>
