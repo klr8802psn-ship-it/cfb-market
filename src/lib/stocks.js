@@ -30,7 +30,7 @@ export function validateBuy({ cash, holdings, priceByTeam, teamId, shares }) {
   const sharesAfter = existing ? existing.shares : shares
   const holdingVal = sharesAfter * price
 
-  if (holdingVal > POSITION_CAP * postPortfolio + 1e-9)
+  if (Math.abs(holdingVal) > POSITION_CAP * postPortfolio + 1e-9)
     return { ok: false, reason: 'exceeds position cap (40% of portfolio)' }
 
   return { ok: true }
@@ -49,12 +49,43 @@ export function maxBuyShares({ cash, holdings, priceByTeam, teamId }) {
   return Math.max(0, Math.min(byCash, byCap))
 }
 
-export function validateSell({ holdings, teamId, shares }) {
+// Largest sell that satisfies the position cap (can open or extend a short).
+// Selling always subtracts shares and always adds cash proceeds, regardless of position sign.
+// Covering a short is done via buy, never sell — so a sell when already short extends the short.
+export function maxSellShares({ cash, holdings, priceByTeam, teamId }) {
+  const price = priceByTeam[teamId] ?? 0
+  if (price <= 0) return 0
+  const held = holdings.find(h => h.team_id === teamId)?.shares ?? 0
+  const portfolio = portfolioValue({ cash, holdings, priceByTeam })
+  const capRoom = Math.floor((POSITION_CAP * portfolio + 1e-9) / price)
+  return held + capRoom
+}
+
+export function validateSell({ cash, holdings, priceByTeam, teamId, shares }) {
   if (!Number.isInteger(shares) || shares <= 0)
     return { ok: false, reason: 'shares must be a positive integer' }
 
+  const price = priceByTeam[teamId] ?? 0
   const held = holdings.find(h => h.team_id === teamId)?.shares ?? 0
-  if (shares > held) return { ok: false, reason: 'cannot sell more shares than held' }
+
+  // Selling always subtracts shares and always adds cash proceeds.
+  // sharesAfter = held - shares (unconditional, whether going long → short or extending short)
+  // cashAfter = cash + shares * price (unconditional proceeds)
+  const sharesAfter = held - shares
+  const cashAfter = cash + shares * price
+
+  // Build the post-trade holdings
+  const holdingsAfter = holdings.map(h => ({ ...h }))
+  const existing = holdingsAfter.find(h => h.team_id === teamId)
+  if (existing) existing.shares = sharesAfter
+  else holdingsAfter.push({ team_id: teamId, shares: sharesAfter })
+
+  const postPortfolio = portfolioValue({ cash: cashAfter, holdings: holdingsAfter, priceByTeam })
+  const holdingVal = sharesAfter * price
+
+  // Position cap: absolute value of holding must not exceed 40% of portfolio
+  if (Math.abs(holdingVal) > POSITION_CAP * postPortfolio + 1e-9)
+    return { ok: false, reason: 'exceeds position cap (40% of portfolio)' }
 
   return { ok: true }
 }

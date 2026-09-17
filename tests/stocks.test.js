@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { maxBuyShares, validateBuy } from '../src/lib/stocks.js'
+import { maxBuyShares, maxSellShares, validateBuy, validateSell } from '../src/lib/stocks.js'
 
 const A = 'a', B = 'b'
 
@@ -33,4 +33,37 @@ test('the max from maxBuyShares passes validateBuy and max+1 fails', () => {
   assert.ok(n > 0)
   assert.equal(validateBuy({ ...state, teamId: A, shares: n }).ok, true)
   assert.equal(validateBuy({ ...state, teamId: A, shares: n + 1 }).ok, false)
+})
+
+test('validateSell allows selling past zero to open a short, within the cap', () => {
+  const r = validateSell({ cash: 2000, holdings: [], priceByTeam: { [A]: 100 }, teamId: A, shares: 5 })
+  assert.equal(r.ok, true)
+})
+
+test('validateSell rejects a short that would breach the 40% cap', () => {
+  const r = validateSell({ cash: 2000, holdings: [], priceByTeam: { [A]: 100 }, teamId: A, shares: 10 })
+  assert.equal(r.ok, false)
+  assert.match(r.reason, /cap/i)
+})
+
+test('validateSell extends an existing short further, within the cap', () => {
+  // Selling always subtracts from held (a "sell" while already short extends the short —
+  // covering is done via validateBuy, never validateSell). held=-5, sell 2 more → -7.
+  // cashAfter = 5000+200=5200, postPortfolio = 5200 + (-7*100) = 4500, holdingVal=-700,
+  // cap = 0.4*4500 = 1800 — well within cap.
+  const r = validateSell({ cash: 5000, holdings: [{ team_id: A, shares: -5 }], priceByTeam: { [A]: 100 }, teamId: A, shares: 2 })
+  assert.equal(r.ok, true)
+})
+
+test('maxSellShares is bounded only by the position cap, not by shares held', () => {
+  const n = maxSellShares({ cash: 2000, holdings: [], priceByTeam: { [A]: 100 }, teamId: A })
+  assert.equal(n, 8)
+})
+
+test('maxSellShares adds held long shares to the short-side cap room', () => {
+  // Holding 3 long at $100 makes the portfolio 2000+300=2300, not just the $2000 cash — the
+  // cap must be computed off total portfolio value, same as maxBuyShares. cap room =
+  // floor(0.4*2300/100) = 9. Plus the 3 already held (sell those 3 to flatten first) = 12.
+  const n = maxSellShares({ cash: 2000, holdings: [{ team_id: A, shares: 3 }], priceByTeam: { [A]: 100 }, teamId: A })
+  assert.equal(n, 12)
 })
