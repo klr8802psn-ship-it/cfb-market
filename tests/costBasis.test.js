@@ -52,12 +52,50 @@ test('out-of-order input is sorted chronologically', () => {
   assert.equal(b[T].avgCost, 110)
 })
 
-test('sell larger than held is clamped (defensive against bad data)', () => {
+test('sell larger than held opens a short rather than clamping at zero', () => {
   const b = buildCostBasis([
     tx('buy', 2, 100, '2026-09-01T00:00:00Z'),
     tx('sell', 5, 100, '2026-09-02T00:00:00Z'),
   ])
-  assert.equal(b[T].shares, 0)
+  assert.equal(b[T].shares, -3)
+})
+
+test('selling past a long position opens a short leg at the crossing price', () => {
+  const b = buildCostBasis([
+    tx('buy', 5, 100, '2026-09-01T00:00:00Z'),
+    tx('sell', 8, 120, '2026-09-02T00:00:00Z'), // closes 5 long, opens 3 short at 120
+  ])
+  assert.equal(b[T].shares, -3)
+  assert.equal(b[T].avgCost, 120)
+  assert.equal(b[T].totalCost, -360)
+})
+
+test('buying past a short position closes it and opens a long leg at the crossing price', () => {
+  const b = buildCostBasis([
+    tx('sell', 5, 100, '2026-09-01T00:00:00Z'),  // opens -5 short @ 100
+    tx('buy', 8, 80, '2026-09-02T00:00:00Z'),    // covers 5, opens 3 long @ 80
+  ])
+  assert.equal(b[T].shares, 3)
+  assert.equal(b[T].avgCost, 80)
+  assert.equal(b[T].totalCost, 240)
+})
+
+test('extending an existing short averages the short entry price', () => {
+  const b = buildCostBasis([
+    tx('sell', 5, 100, '2026-09-01T00:00:00Z'),
+    tx('sell', 5, 120, '2026-09-02T00:00:00Z'),
+  ])
+  assert.equal(b[T].shares, -10)
+  assert.equal(b[T].avgCost, 110)
+})
+
+test('partially covering a short keeps the short avg cost unchanged', () => {
+  const b = buildCostBasis([
+    tx('sell', 10, 100, '2026-09-01T00:00:00Z'),
+    tx('buy', 4, 90, '2026-09-02T00:00:00Z'),
+  ])
+  assert.equal(b[T].shares, -6)
+  assert.equal(b[T].avgCost, 100)
 })
 
 test('positionPL computes value, cost, pl and pct', () => {

@@ -15,17 +15,30 @@ export function buildCostBasis(transactions) {
     const price = Number(tx.price) || 0
     if (shares <= 0) continue
     const cur = basis[tx.team_id] ?? { shares: 0, totalCost: 0, avgCost: 0 }
-    if (tx.side === 'buy') {
-      cur.totalCost += shares * price
-      cur.shares += shares
-    } else if (tx.side === 'sell') {
-      const avg = cur.shares > 0 ? cur.totalCost / cur.shares : 0
-      const sold = Math.min(shares, cur.shares)
-      cur.totalCost -= sold * avg
-      cur.shares -= sold
-      if (cur.shares === 0) cur.totalCost = 0
+    const signedShares = tx.side === 'buy' ? shares : -shares
+
+    const sameDirection = cur.shares === 0 || Math.sign(cur.shares) === Math.sign(signedShares)
+
+    if (sameDirection) {
+      // Extending (or opening) a position in the same direction: average the cost in.
+      cur.totalCost += signedShares * price
+      cur.shares += signedShares
+    } else if (Math.abs(signedShares) <= Math.abs(cur.shares)) {
+      // Reducing the position without crossing zero: avg cost on the remaining
+      // shares doesn't change (moving-average method — only a same-direction
+      // trade changes avgCost).
+      const avg = cur.totalCost / cur.shares
+      cur.shares += signedShares
+      cur.totalCost = cur.shares * avg
+    } else {
+      // Crosses through zero: close out the existing leg entirely, then open
+      // a fresh leg in the new direction, priced at this trade.
+      const remainder = signedShares + cur.shares // shares left over after fully closing cur
+      cur.shares = remainder
+      cur.totalCost = remainder * price
     }
-    cur.avgCost = cur.shares > 0 ? cur.totalCost / cur.shares : 0
+
+    cur.avgCost = cur.shares !== 0 ? cur.totalCost / cur.shares : 0
     basis[tx.team_id] = cur
   }
   return basis
