@@ -20,6 +20,8 @@ export function validateBuy({ cash, holdings, priceByTeam, teamId, shares }) {
   const cost = shares * price
   if (cost > cash) return { ok: false, reason: 'insufficient cash' }
 
+  const held = holdings.find(h => h.team_id === teamId)?.shares ?? 0
+
   const cashAfter = cash - cost
   const holdingsAfter = holdings.map(h => ({ ...h }))
   const existing = holdingsAfter.find(h => h.team_id === teamId)
@@ -30,7 +32,10 @@ export function validateBuy({ cash, holdings, priceByTeam, teamId, shares }) {
   const sharesAfter = existing ? existing.shares : shares
   const holdingVal = sharesAfter * price
 
-  if (Math.abs(holdingVal) > POSITION_CAP * postPortfolio + 1e-9)
+  // The cap only blocks trades that INCREASE exposure. Covering part of a
+  // short (reducing |shares| toward 0) is never blocked, however large the
+  // existing short is — matches the shared RPC's identical rule.
+  if (Math.abs(sharesAfter) > Math.abs(held) && Math.abs(holdingVal) > POSITION_CAP * postPortfolio + 1e-9)
     return { ok: false, reason: 'exceeds position cap (40% of portfolio)' }
 
   return { ok: true }
@@ -84,7 +89,10 @@ export function validateSell({ cash, holdings, priceByTeam, teamId, shares }) {
   const holdingVal = sharesAfter * price
 
   // Position cap: absolute value of holding must not exceed 40% of portfolio
-  if (Math.abs(holdingVal) > POSITION_CAP * postPortfolio + 1e-9)
+  // The cap only blocks trades that INCREASE exposure. Trimming part of an
+  // over-cap long (reducing |shares| toward 0) is never blocked, however
+  // large the existing position is — matches the shared RPC's identical rule.
+  if (Math.abs(sharesAfter) > Math.abs(held) && Math.abs(holdingVal) > POSITION_CAP * postPortfolio + 1e-9)
     return { ok: false, reason: 'exceeds position cap (40% of portfolio)' }
 
   return { ok: true }

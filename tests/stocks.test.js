@@ -67,3 +67,16 @@ test('maxSellShares adds held long shares to the short-side cap room', () => {
   const n = maxSellShares({ cash: 2000, holdings: [{ team_id: A, shares: 3 }], priceByTeam: { [A]: 100 }, teamId: A })
   assert.equal(n, 12)
 })
+
+test('validateSell always allows reducing an over-cap long, even while still over cap after', () => {
+  // held=10 @ $100 with cash=100 → portfolio=1100, cap=$440, position=$1000 — already over cap.
+  // Selling 1 leaves 9 shares ($900) — still over the $440 cap, but SMALLER than before, so it
+  // must be allowed: the cap only blocks trades that increase exposure, never ones that shrink it.
+  const r = validateSell({ cash: 100, holdings: [{ team_id: A, shares: 10 }], priceByTeam: { [A]: 100 }, teamId: A, shares: 1 })
+  assert.equal(r.ok, true)
+})
+
+test('validateBuy always allows covering an over-cap short, even while still over cap after', () => {
+  const r = validateBuy({ cash: 3000, holdings: [{ team_id: A, shares: -10 }], priceByTeam: { [A]: 100 }, teamId: A, shares: 1 })
+  assert.equal(r.ok, true)
+})

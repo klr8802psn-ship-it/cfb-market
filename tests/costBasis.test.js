@@ -98,6 +98,25 @@ test('partially covering a short keeps the short avg cost unchanged', () => {
   assert.equal(b[T].avgCost, 100)
 })
 
+test('auto_cover closes a short the same way a voluntary buy-side cover would', () => {
+  const b = buildCostBasis([
+    tx('sell', 10, 100, '2026-09-01T00:00:00Z'),       // opens -10 short @ 100
+    tx('auto_cover', 10, 180, '2026-09-02T00:00:00Z'), // force-closed at settle price 180
+  ])
+  assert.equal(b[T].shares, 0)
+  assert.equal(b[T].totalCost, 0)
+  assert.equal(b[T].avgCost, 0)
+})
+
+test('auto_cover that only partially closes a short leaves the remainder at the original avg cost', () => {
+  const b = buildCostBasis([
+    tx('sell', 10, 100, '2026-09-01T00:00:00Z'),      // opens -10 short @ 100
+    tx('auto_cover', 4, 180, '2026-09-02T00:00:00Z'), // force-closes 4 of the 10
+  ])
+  assert.equal(b[T].shares, -6)
+  assert.equal(b[T].avgCost, 100) // unchanged — reducing without crossing zero never changes avgCost
+})
+
 test('positionPL computes value, cost, pl and pct', () => {
   const r = positionPL({ shares: 10, avgCost: 100, price: 125 })
   assert.equal(r.value, 1250)
@@ -110,4 +129,18 @@ test('positionPL with zero cost has 0 pct', () => {
   const r = positionPL({ shares: 0, avgCost: 0, price: 125 })
   assert.equal(r.pl, 0)
   assert.equal(r.plPct, 0)
+})
+
+test('positionPL computes a correct percentage for a profitable short', () => {
+  // Short 5 @ avgCost 100, price fell to 80 → profit $100 on $500 cost = +20%
+  const r = positionPL({ shares: -5, avgCost: 100, price: 80 })
+  assert.equal(r.pl, 100)
+  assert.equal(r.plPct, 20)
+})
+
+test('positionPL computes a correct percentage for a losing short', () => {
+  // Short 5 @ avgCost 100, price rose to 130 → loss $150 on $500 cost = -30%
+  const r = positionPL({ shares: -5, avgCost: 100, price: 130 })
+  assert.equal(r.pl, -150)
+  assert.equal(r.plPct, -30)
 })

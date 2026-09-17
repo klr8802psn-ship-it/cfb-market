@@ -1,7 +1,9 @@
 // Cost basis per team from a user's trade history (moving-average method).
 //
 // buildCostBasis(transactions) → { [team_id]: { shares, avgCost, totalCost } }
-//   - transactions: [{ team_id, side: 'buy'|'sell', shares, price, created_at }]
+//   - transactions: [{ team_id, side: 'buy'|'sell'|'auto_cover', shares, price, created_at }]
+//     ('auto_cover' is a forced close of an underwater short — treated as a buy-direction
+//     trade, same as a voluntary cover, since that's what it economically is)
 //   - Processed in chronological order. avgCost changes when a trade extends the
 //     position in its current direction (long or short) and resets to the trade
 //     price when a trade crosses through zero; it stays fixed when a trade only
@@ -17,7 +19,7 @@ export function buildCostBasis(transactions) {
     const price = Number(tx.price) || 0
     if (shares <= 0) continue
     const cur = basis[tx.team_id] ?? { shares: 0, totalCost: 0, avgCost: 0 }
-    const signedShares = tx.side === 'buy' ? shares : -shares
+    const signedShares = (tx.side === 'buy' || tx.side === 'auto_cover') ? shares : -shares
 
     const sameDirection = cur.shares === 0 || Math.sign(cur.shares) === Math.sign(signedShares)
 
@@ -53,6 +55,7 @@ export function positionPL({ shares, avgCost, price }) {
   const value = s * p
   const cost = s * c
   const pl = value - cost
-  const plPct = cost > 0 ? (pl / cost) * 100 : 0
+  const denom = Math.abs(cost)
+  const plPct = denom > 0 ? (pl / denom) * 100 : 0
   return { value, cost, pl, plPct }
 }

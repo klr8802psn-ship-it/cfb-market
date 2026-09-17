@@ -666,7 +666,7 @@ export default function Market() {
     .sort((a, b) => (heldById[b.id] * (priceByTeam[b.id] ?? 0)) - (heldById[a.id] * (priceByTeam[a.id] ?? 0)))
   const totalCost = myHeld.reduce((s, t) => s + heldById[t.id] * (costBasis[t.id]?.avgCost ?? 0), 0)
   const unrealized = holdingsVal - totalCost
-  const unrealizedPct = totalCost > 0 ? (unrealized / totalCost) * 100 : 0
+  const unrealizedPct = totalCost !== 0 ? (unrealized / Math.abs(totalCost)) * 100 : 0
 
   return (
     <>

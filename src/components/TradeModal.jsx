@@ -138,7 +138,7 @@ export default function TradeModal({ team, side, cash, holdings, priceByTeam, on
 
         {side === 'sell' && held <= 0 && (
           <p style={{ fontSize: 12, color: 'var(--accent)', marginBottom: 12 }}>
-            Selling here opens a short — you profit if the price falls, lose if it rises.
+            {held < 0 ? 'Selling here extends your short' : 'Selling here opens a short'} — you profit if the price falls, lose if it rises.
           </p>
         )}
 
