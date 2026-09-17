@@ -2,8 +2,10 @@
 //
 // buildCostBasis(transactions) → { [team_id]: { shares, avgCost, totalCost } }
 //   - transactions: [{ team_id, side: 'buy'|'sell', shares, price, created_at }]
-//   - Processed in chronological order. Sells reduce cost at the running average,
-//     so avgCost never changes on a sell (only on a buy).
+//   - Processed in chronological order. avgCost changes when a trade extends the
+//     position in its current direction (long or short) and resets to the trade
+//     price when a trade crosses through zero; it stays fixed when a trade only
+//     reduces the position without crossing zero.
 //
 // positionPL({ shares, avgCost, price }) → { value, cost, pl, plPct }
 
