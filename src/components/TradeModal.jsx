@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { validateBuy, validateSell, portfolioValue, maxBuyShares, POSITION_CAP } from '../lib/stocks'
+import { validateBuy, validateSell, portfolioValue, maxBuyShares, maxSellShares, POSITION_CAP } from '../lib/stocks'
 
 function fmt(n) {
   return '$' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -17,10 +17,10 @@ export default function TradeModal({ team, side, cash, holdings, priceByTeam, on
 
   const validation = useMemo(() => {
     if (side === 'buy') return validateBuy({ cash, holdings, priceByTeam, teamId: team.id, shares })
-    return validateSell({ holdings, teamId: team.id, shares })
+    return validateSell({ cash, holdings, priceByTeam, teamId: team.id, shares })
   }, [side, cash, holdings, priceByTeam, team.id, shares])
 
-  const maxShares = side === 'buy' ? maxBuyShares({ cash, holdings, priceByTeam, teamId: team.id }) : held
+  const maxShares = side === 'buy' ? maxBuyShares({ cash, holdings, priceByTeam, teamId: team.id }) : maxSellShares({ cash, holdings, priceByTeam, teamId: team.id })
   const maxPositionAmount = portfolio * POSITION_CAP
 
   function setClamped(n) {
@@ -32,9 +32,9 @@ export default function TradeModal({ team, side, cash, holdings, priceByTeam, on
   const canConfirm = validation.ok && !busy
 
   // Allocation after this trade
-  const heldAfter = side === 'buy' ? held + shares : Math.max(0, held - shares)
-  const allocAfter = portfolio > 0 ? (heldAfter * price) / portfolio * 100 : 0
-  const allocNow = portfolio > 0 ? (held * price) / portfolio * 100 : 0
+  const heldAfter = side === 'buy' ? held + shares : held - shares
+  const allocAfter = portfolio > 0 ? (Math.abs(heldAfter) * price) / portfolio * 100 : 0
+  const allocNow = portfolio > 0 ? (Math.abs(held) * price) / portfolio * 100 : 0
   const allocColor = allocAfter > POSITION_CAP * 100 + 1e-6 ? 'var(--negative)' : allocAfter > 30 ? 'var(--accent)' : 'var(--positive)'
 
   const quick = side === 'buy'
@@ -59,7 +59,7 @@ export default function TradeModal({ team, side, cash, holdings, priceByTeam, on
           <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{ fontWeight: 900, color: '#fff', fontSize: 14, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{team.name}</p>
             <p style={{ fontSize: 12, color: 'var(--faint)', fontFamily: 'var(--font-mono)', margin: 0 }}>
-              {fmtPrice(price)} / share{held > 0 ? ` · you hold ${held}` : ''}
+              {fmtPrice(price)} / share{held > 0 ? ` · you hold ${held}` : held < 0 ? ` · you're short ${Math.abs(held)}` : ''}
             </p>
           </div>
           <span style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', padding: '4px 8px', borderRadius: 6, background: side === 'buy' ? 'var(--positive-soft)' : 'var(--negative-soft)', color: side === 'buy' ? 'var(--positive)' : 'var(--negative)' }}>
@@ -72,7 +72,7 @@ export default function TradeModal({ team, side, cash, holdings, priceByTeam, on
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 }}>
             <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--faint)', margin: 0 }}>Shares</p>
             <p style={{ fontSize: 11, color: 'var(--faint)', margin: 0, fontFamily: 'var(--font-mono)' }}>
-              {side === 'buy' ? `max ${maxShares}` : `${held} held`}
+              max {maxShares}
             </p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -133,6 +133,12 @@ export default function TradeModal({ team, side, cash, holdings, priceByTeam, on
         {side === 'buy' && maxShares === 0 && (
           <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>
             {cash < price ? `You need ${fmt(price)} in cash to buy one share.` : `You're at the ${Math.round(POSITION_CAP * 100)}% cap for this team (${fmt(maxPositionAmount)} max).`}
+          </p>
+        )}
+
+        {side === 'sell' && held <= 0 && (
+          <p style={{ fontSize: 12, color: 'var(--accent)', marginBottom: 12 }}>
+            Selling here opens a short — you profit if the price falls, lose if it rises.
           </p>
         )}
 

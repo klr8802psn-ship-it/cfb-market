@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import TeamMark from './TeamMark'
-import { validateBuy } from '../lib/stocks'
+import { validateBuy, validateSell } from '../lib/stocks'
 import { positionPL } from '../lib/costBasis'
 
 function fmt(n) {
@@ -111,10 +111,11 @@ export default function TeamSheet({ team, rank, price, prevPrice, fpi, history, 
   const hasPrice = price != null
   const delta = hasPrice && prevPrice != null ? price - prevPrice : null
   const pct = delta != null && prevPrice ? (delta / prevPrice) * 100 : null
-  const pl = held > 0 && hasPrice && basis ? positionPL({ shares: held, avgCost: basis.avgCost, price }) : null
+  const pl = held !== 0 && hasPrice && basis ? positionPL({ shares: held, avgCost: basis.avgCost, price }) : null
   const buyCheck = hasPrice ? validateBuy({ cash, holdings, priceByTeam, teamId: team.id, shares: 1 }) : { ok: false, reason: 'not priced yet' }
+  const sellCheck = hasPrice ? validateSell({ cash, holdings, priceByTeam, teamId: team.id, shares: 1 }) : { ok: false, reason: 'not priced yet' }
   const canBuy = tradingOpen && buyCheck.ok
-  const canSell = tradingOpen && held > 0
+  const canSell = tradingOpen && sellCheck.ok
   const buyHint = !tradingOpen ? 'Market closed' : !hasPrice ? 'Not priced yet' : !buyCheck.ok ? (buyCheck.reason.includes('cash') ? 'Not enough cash' : 'At 40% cap') : null
 
   return (
@@ -157,11 +158,11 @@ export default function TeamSheet({ team, rank, price, prevPrice, fpi, history, 
           <Chart history={history} />
         </div>
 
-        {held > 0 ? (
+        {held !== 0 ? (
           <div className="card" style={{ padding: 14, marginBottom: 14, borderColor: 'var(--accent-line)', background: 'rgba(245,158,11,0.04)' }}>
             <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--accent)', margin: '0 0 10px' }}>Your position</p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-              <Stat label="Shares" value={held} sub={basis ? `avg ${fmtPrice(basis.avgCost)}` : null} />
+              <Stat label={held < 0 ? 'Short shares' : 'Shares'} value={Math.abs(held)} sub={basis ? `avg ${fmtPrice(basis.avgCost)}` : null} />
               <Stat label="Value" value={fmt(pl?.value ?? held * (price ?? 0))} />
               <Stat label="Gain / loss" value={pl ? fmtSignedMoney(pl.pl) : '—'} sub={pl ? fmtPct(pl.plPct) : null} color={pl ? tone(pl.pl) : undefined} />
             </div>

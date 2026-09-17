@@ -9,7 +9,7 @@ import TradeModal from '../components/TradeModal'
 import ProfileSetup from '../components/ProfileSetup'
 import AppBar from '../components/AppBar'
 import TeamSheet from '../components/TeamSheet'
-import { STOCK_START_CASH, holdingsValue, portfolioValue } from '../lib/stocks'
+import { STOCK_START_CASH, holdingsValue, portfolioValue, maxSellShares } from '../lib/stocks'
 import { buildCostBasis, positionPL } from '../lib/costBasis'
 import { nextClose, nextOpen, formatCountdown, formatShortDate } from '../lib/schedule'
 import { avatarColor, initials } from '../lib/avatar'
@@ -104,7 +104,7 @@ function TableRow({ team, rank, price, prevPrice, history, held, onOpen }) {
   const delta = hasPrice && prevPrice != null ? price - prevPrice : null
   const pct = delta != null && prevPrice ? (delta / prevPrice) * 100 : null
   return (
-    <button type="button" className={`trow ${held > 0 ? 'trow--held' : ''}`} onClick={() => onOpen(team)} aria-label={`${team.name}, ${hasPrice ? fmtPrice(price) : 'not priced'}`}>
+    <button type="button" className={`trow ${held !== 0 ? 'trow--held' : ''}`} onClick={() => onOpen(team)} aria-label={`${team.name}, ${hasPrice ? fmtPrice(price) : 'not priced'}`}>
       <span className={`rank ${rank && rank <= 25 ? 'rank--top' : ''}`}>{rank ?? '–'}</span>
       <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
         <TeamMark color={team.primary_color} color2={team.secondary_color} abbr={team.abbreviation} size="md" />
@@ -112,7 +112,7 @@ function TableRow({ team, rank, price, prevPrice, history, held, onOpen }) {
           <span className="ellip" style={{ display: 'block', fontWeight: 700, color: '#fff', fontSize: 13.5 }}>{team.name}</span>
           <span className="ellip" style={{ display: 'block', fontSize: 10.5, color: 'var(--faint)', fontWeight: 600, marginTop: 1 }}>
             {team.conference}
-            {held > 0 && <span className="num" style={{ color: 'var(--accent)', fontWeight: 900 }}> · {held} sh</span>}
+            {held !== 0 && <span className="num" style={{ color: held > 0 ? 'var(--accent)' : 'var(--negative)', fontWeight: 900 }}> · {held < 0 ? `SHORT ${Math.abs(held)}` : held} sh</span>}
           </span>
         </span>
       </span>
@@ -142,8 +142,8 @@ function PositionRow({ team, rank, price, prevPrice, held, basis, onOpen }) {
           <span className="ellip" style={{ display: 'block', fontWeight: 700, color: '#fff', fontSize: 13.5 }}>
             {rank && <span className={`rank ${rank <= 25 ? 'rank--top' : ''}`} style={{ marginRight: 6 }}>#{rank}</span>}{team.name}
           </span>
-          <span className="num ellip" style={{ display: 'block', fontSize: 10.5, color: 'var(--faint)', marginTop: 1 }}>
-            {held} sh · avg {basis ? fmtPrice(basis.avgCost) : '—'}
+          <span className="num ellip" style={{ display: 'block', fontSize: 10.5, color: held < 0 ? 'var(--negative)' : 'var(--faint)', marginTop: 1 }}>
+            {held < 0 ? `SHORT ${Math.abs(held)}` : held} sh · avg {basis ? fmtPrice(basis.avgCost) : '—'}
           </span>
         </span>
       </span>
@@ -315,6 +315,7 @@ function ActivityFeed({ transactions, teamsById, members, currentUserId, now, on
         {transactions.map((tx, i) => {
           const team = teamsById[tx.team_id]
           const isBuy = tx.side === 'buy'
+          const isAutoCover = tx.side === 'auto_cover'
           const isMe = tx.user_id === currentUserId
           const who = isMe ? 'You' : (nameById[tx.user_id] ?? 'Someone')
           return (
@@ -323,7 +324,7 @@ function ActivityFeed({ transactions, teamsById, members, currentUserId, now, on
               <span style={{ minWidth: 0 }}>
                 <span className="ellip" style={{ display: 'block', fontSize: 13, color: '#fff' }}>
                   <span style={{ fontWeight: 800, color: isMe ? 'var(--accent)' : '#fff' }}>{who}</span>
-                  {' '}<span style={{ color: isBuy ? 'var(--positive)' : 'var(--negative)', fontWeight: 800 }}>{isBuy ? 'bought' : 'sold'}</span>
+                  {' '}<span style={{ color: isAutoCover ? 'var(--faint)' : isBuy ? 'var(--positive)' : 'var(--negative)', fontWeight: 800 }}>{isAutoCover ? 'auto-covered' : isBuy ? 'bought' : 'sold'}</span>
                   {' '}{tx.shares} {team?.abbreviation ?? 'sh'}
                 </span>
                 <span className="num" style={{ display: 'block', fontSize: 10, color: 'var(--faint)' }}>
@@ -449,7 +450,7 @@ export default function Market() {
         { data: leagueAccts }, { data: leagueHoldings }, { data: leagueMembers }, { data: myTx }, { data: recentTx },
       ] = results
       setCash(acct?.cash != null ? Number(acct.cash) : startCash)
-      setHoldings((myHoldings ?? []).filter(h => h.shares > 0))
+      setHoldings((myHoldings ?? []).filter(h => h.shares !== 0))
       setTransactions(myTx ?? [])
       setLeagueTx(recentTx ?? [])
       setTeams(teamRows ?? [])
@@ -479,7 +480,7 @@ export default function Market() {
       setHistoryByTeam(hist)
       setLastSettledAt(newest)
       setLeaderAccounts(leagueAccts ?? [])
-      setLeaderHoldings((leagueHoldings ?? []).filter(h => h.shares > 0))
+      setLeaderHoldings((leagueHoldings ?? []).filter(h => h.shares !== 0))
       setMembers((leagueMembers ?? []).map(m => ({
         user_id: m.user_id,
         display_name: m.user?.display_name ?? null,
@@ -502,10 +503,10 @@ export default function Market() {
       supabase.from('stock_transactions').select('user_id, team_id, side, shares, price, created_at').eq('league_id', league.id).eq('season_id', seasonId).order('created_at', { ascending: false }).limit(30),
     ]).then(([{ data: acct }, { data: myHoldings }, { data: myTx }, { data: leagueAccts }, { data: leagueHoldings }, { data: recentTx }]) => {
       setCash(acct?.cash != null ? Number(acct.cash) : startCash)
-      setHoldings((myHoldings ?? []).filter(h => h.shares > 0))
+      setHoldings((myHoldings ?? []).filter(h => h.shares !== 0))
       setTransactions(myTx ?? [])
       if (leagueAccts) setLeaderAccounts(leagueAccts)
-      if (leagueHoldings) setLeaderHoldings(leagueHoldings.filter(h => h.shares > 0))
+      if (leagueHoldings) setLeaderHoldings(leagueHoldings.filter(h => h.shares !== 0))
       if (recentTx) setLeagueTx(recentTx)
     })
   }
@@ -661,7 +662,7 @@ export default function Market() {
   const hasTicker = tickerItems.length > 0
   const stickTop = hasTicker ? '83px' : '53px'
 
-  const myHeld = sortedTeams.filter(t => heldById[t.id] > 0)
+  const myHeld = sortedTeams.filter(t => heldById[t.id])
     .sort((a, b) => (heldById[b.id] * (priceByTeam[b.id] ?? 0)) - (heldById[a.id] * (priceByTeam[a.id] ?? 0)))
   const totalCost = myHeld.reduce((s, t) => s + heldById[t.id] * (costBasis[t.id]?.avgCost ?? 0), 0)
   const unrealized = holdingsVal - totalCost
