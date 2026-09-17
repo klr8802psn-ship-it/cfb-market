@@ -58,7 +58,7 @@ export function maxSellShares({ cash, holdings, priceByTeam, teamId }) {
   const held = holdings.find(h => h.team_id === teamId)?.shares ?? 0
   const portfolio = portfolioValue({ cash, holdings, priceByTeam })
   const capRoom = Math.floor((POSITION_CAP * portfolio + 1e-9) / price)
-  return held + capRoom
+  return Math.max(0, held + capRoom)
 }
 
 export function validateSell({ cash, holdings, priceByTeam, teamId, shares }) {
