@@ -3,12 +3,13 @@ function fmt(n) {
   return '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-export default function PortfolioBar({ cash, holdingsVal, startCash }) {
+export default function PortfolioBar({ cash, holdingsVal, startCash, freeCash = cash, shortOwed = 0 }) {
   const total = cash + holdingsVal
   const pl = total - startCash
   const plPos = pl > 0
   const plNeg = pl < 0
-  const hasHoldings = holdingsVal > 0
+  const hasHoldings = holdingsVal !== 0 || shortOwed > 0
+  const cashIsCommitted = freeCash < cash - 0.005
 
   return (
     <div className="card card--raised" style={{ padding: 20, marginBottom: 20 }}>
@@ -22,12 +23,20 @@ export default function PortfolioBar({ cash, holdingsVal, startCash }) {
             <div>
               <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--faint)', marginBottom: 4 }}>Cash</p>
               <p style={{ fontFamily: 'var(--font-mono)', fontSize: 18, fontWeight: 900, color: '#fff' }}>{fmt(cash)}</p>
+              {cashIsCommitted && (
+                <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--accent)', marginTop: 4 }}>{fmt(freeCash)} free to invest</p>
+              )}
             </div>
             <div>
               <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--faint)', marginBottom: 4 }}>Holdings</p>
               <p style={{ fontFamily: 'var(--font-mono)', fontSize: 18, fontWeight: 900, color: '#fff' }}>{fmt(holdingsVal)}</p>
             </div>
           </div>
+          {cashIsCommitted && (
+            <p style={{ fontSize: 11.5, color: 'var(--muted)', lineHeight: 1.45, margin: '-4px 0 14px' }}>
+              {shortOwed > 0 ? `${fmt(shortOwed)} of your cash is owed back on shorts. ` : ''}Your longs plus shorts can't top your portfolio value, so only {fmt(freeCash)} is free for new bets.
+            </p>
+          )}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderRadius: 'var(--r-sm)', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
             <div>
               <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--faint)', marginBottom: 4 }}>Total</p>

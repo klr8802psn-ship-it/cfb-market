@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { maxBuyShares, maxSellShares, validateBuy, validateSell, grossExposure, portfolioValue } from '../src/lib/stocks.js'
+import { maxBuyShares, maxSellShares, validateBuy, validateSell, grossExposure, portfolioValue, freeToInvest, shortValue } from '../src/lib/stocks.js'
 
 const A = 'a', B = 'b'
 
@@ -122,4 +122,15 @@ test('over-leveraged accounts can still shrink positions', () => {
   assert.equal(maxBuyShares({ cash, holdings, priceByTeam: twenty, teamId: 'T0' }), 10)   // cash-bound cover
   assert.equal(maxSellShares({ cash, holdings, priceByTeam: twenty, teamId: 'T1' }), 40)
   assert.equal(maxSellShares({ cash, holdings, priceByTeam: twenty, teamId: 'T5' }), 0)
+})
+
+test('freeToInvest excludes short proceeds and respects the exposure limit', () => {
+  // Kenny-shaped: $852 own cash + $798 short proceeds, $4281 long, short 6 @ $133.
+  const priceByTeam = { L: 4281, S: 133 }
+  const holdings = [{ team_id: 'L', shares: 1 }, { team_id: 'S', shares: -6 }]
+  assert.equal(shortValue(holdings, priceByTeam), 798)
+  assert.equal(freeToInvest({ cash: 1650, holdings, priceByTeam }), 54)
+  assert.equal(freeToInvest({ cash: 2000, holdings: [], priceByTeam }), 2000)
+  // Over the limit → nothing free, never negative
+  assert.equal(freeToInvest({ cash: 1000, holdings: [{ team_id: 'L', shares: 2 }, { team_id: 'S', shares: -60 }], priceByTeam }), 0)
 })
