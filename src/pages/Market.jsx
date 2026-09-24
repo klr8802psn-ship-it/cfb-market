@@ -10,7 +10,7 @@ import ProfileSetup from '../components/ProfileSetup'
 import AppBar from '../components/AppBar'
 import TeamSheet from '../components/TeamSheet'
 import WeeklyRecap from '../components/WeeklyRecap'
-import { STOCK_START_CASH, holdingsValue } from '../lib/stocks'
+import { STOCK_START_CASH, holdingsValue, freeToInvest, shortValue } from '../lib/stocks'
 import { buildCostBasis, positionPL } from '../lib/costBasis'
 import { nextClose, nextOpen, formatCountdown, formatShortDate } from '../lib/schedule'
 import { avatarColor, initials } from '../lib/avatar'
@@ -728,7 +728,8 @@ export default function Market() {
         />
       )}
 
-      <PortfolioBar cash={cash} holdingsVal={holdingsVal} startCash={startCash} />
+      <PortfolioBar cash={cash} holdingsVal={holdingsVal} startCash={startCash}
+        freeCash={freeToInvest({ cash, holdings, priceByTeam })} shortOwed={shortValue(holdings, priceByTeam)} />
 
       {!hasAnyPrice && (
         <div className="card" style={{ padding: 16, marginBottom: 16, display: 'flex', gap: 12, borderColor: 'rgba(245,158,11,0.2)', background: 'rgba(245,158,11,0.04)' }}>

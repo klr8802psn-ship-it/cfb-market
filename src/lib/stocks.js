@@ -20,6 +20,18 @@ export function grossExposure(holdings, priceByTeam) {
   return holdings.reduce((sum, { team_id, shares }) => sum + Math.abs(shares * (priceByTeam[team_id] ?? 0)), 0)
 }
 
+// Cash you can actually put into new bets. Short proceeds sit in cash but are owed back,
+// and every open bet counts against the exposure limit, so this is usually less than cash.
+export function freeToInvest({ cash, holdings, priceByTeam }) {
+  const room = EXPOSURE_CAP * portfolioValue({ cash, holdings, priceByTeam }) - grossExposure(holdings, priceByTeam)
+  return Math.max(0, Math.min(cash, room))
+}
+
+// Market value owed on open shorts (positive number).
+export function shortValue(holdings, priceByTeam) {
+  return holdings.reduce((sum, { team_id, shares }) => shares < 0 ? sum - shares * (priceByTeam[team_id] ?? 0) : sum, 0)
+}
+
 // Largest |shares| this team can reach before total exposure hits the cap, given every other position.
 function exposureRoomShares({ holdings, priceByTeam, teamId, portfolio }) {
   const price = priceByTeam[teamId] ?? 0
