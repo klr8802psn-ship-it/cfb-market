@@ -9,11 +9,13 @@ import TradeModal from '../components/TradeModal'
 import ProfileSetup from '../components/ProfileSetup'
 import AppBar from '../components/AppBar'
 import TeamSheet from '../components/TeamSheet'
-import { STOCK_START_CASH, holdingsValue, portfolioValue, maxSellShares } from '../lib/stocks'
+import WeeklyRecap from '../components/WeeklyRecap'
+import { STOCK_START_CASH, holdingsValue } from '../lib/stocks'
 import { buildCostBasis, positionPL } from '../lib/costBasis'
 import { nextClose, nextOpen, formatCountdown, formatShortDate } from '../lib/schedule'
 import { avatarColor, initials } from '../lib/avatar'
 import { parseInviteCode } from '../lib/invite'
+import { rankPortfolios, buildWeeklyRecap, inviteUrl } from '../lib/recap'
 
 function fmt(n) {
   return '$' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -219,23 +221,7 @@ function Avatar({ name, size = 32 }) {
   )
 }
 
-function LeaderboardTab({ accounts, allHoldings, priceByTeam, prevPriceByTeam, hasAnyDelta, members, teamsById, currentUserId, startCash }) {
-  const ranked = useMemo(() => {
-    const rows = members.map(m => {
-      const acct = accounts.find(a => a.user_id === m.user_id)
-      const cash = acct ? Number(acct.cash) : startCash
-      const holdings = allHoldings.filter(h => h.user_id === m.user_id).map(h => ({ team_id: h.team_id, shares: h.shares }))
-      const total = portfolioValue({ cash, holdings, priceByTeam })
-      // Value at last week's prices (current holdings), for rank movement
-      const prevPrices = Object.fromEntries(Object.keys(priceByTeam).map(id => [id, prevPriceByTeam[id] ?? priceByTeam[id]]))
-      const prevTotal = portfolioValue({ cash, holdings, priceByTeam: prevPrices })
-      const top = [...holdings].sort((a, b) => (b.shares * (priceByTeam[b.team_id] ?? 0)) - (a.shares * (priceByTeam[a.team_id] ?? 0))).slice(0, 3)
-      return { ...m, cash, total, prevTotal, pl: total - startCash, top }
-    })
-    const byPrev = [...rows].sort((a, b) => b.prevTotal - a.prevTotal).map(r => r.user_id)
-    return rows.sort((a, b) => b.total - a.total).map((r, i) => ({ ...r, rank: i + 1, prevRank: byPrev.indexOf(r.user_id) + 1 }))
-  }, [accounts, allHoldings, priceByTeam, prevPriceByTeam, members, startCash])
-
+function LeaderboardTab({ ranked, hasAnyDelta, teamsById, currentUserId }) {
   if (!ranked.length) {
     return <p style={{ color: 'var(--muted)', fontSize: 14, textAlign: 'center', padding: 32 }}>No members yet.</p>
   }
@@ -591,6 +577,28 @@ export default function Market() {
     return sortedTeams.filter(t => priceByTeam[t.id] != null).slice(0, 14).map(t => ({ team: t, price: priceByTeam[t.id], pct: null }))
   }, [sortedTeams, priceByTeam, prevPriceByTeam, hasAnyPrice, hasAnyDelta])
 
+  const ranked = useMemo(
+    () => rankPortfolios({ members, accounts: leaderAccounts, allHoldings: leaderHoldings, priceByTeam, prevPriceByTeam, startCash }),
+    [members, leaderAccounts, leaderHoldings, priceByTeam, prevPriceByTeam, startCash],
+  )
+  const recap = useMemo(
+    () => buildWeeklyRecap({ ranked, userId: user?.id, priceByTeam, prevPriceByTeam }),
+    [ranked, user?.id, priceByTeam, prevPriceByTeam],
+  )
+
+  // One recap per settle: dismissing hides it until the next Monday's prices land.
+  const recapKey = league && lastSettledAt ? `cfbm:recap-dismissed:${league.id}` : null
+  const settleStamp = lastSettledAt?.toISOString() ?? null
+  const [recapDismissedNow, setRecapDismissedNow] = useState(null)
+  const recapDismissedStored = useMemo(() => {
+    try { return recapKey ? localStorage.getItem(recapKey) : null } catch { return null }
+  }, [recapKey])
+  const showRecap = !!recap && settleStamp !== recapDismissedStored && settleStamp !== recapDismissedNow
+  function dismissRecap() {
+    setRecapDismissedNow(settleStamp)
+    try { if (recapKey && settleStamp) localStorage.setItem(recapKey, settleStamp) } catch { /* storage blocked */ }
+  }
+
   const chips = [
     { key: 'all', label: 'All' },
     { key: 'top25', label: 'Top 25' },
@@ -708,6 +716,18 @@ export default function Market() {
         </div>
       )}
 
+      {showRecap && (
+        <WeeklyRecap
+          recap={recap}
+          settledLabel={lastSettledAt ? `Settled ${formatShortDate(lastSettledAt)}` : null}
+          leagueName={league.name}
+          inviteLink={inviteUrl(window.location.origin, league.invite_code)}
+          teamsById={teamsById}
+          currentUserId={user?.id}
+          onDismiss={dismissRecap}
+        />
+      )}
+
       <PortfolioBar cash={cash} holdingsVal={holdingsVal} startCash={startCash} />
 
       {!hasAnyPrice && (
@@ -818,15 +838,10 @@ export default function Market() {
       {tab === 'leaderboard' && (
         <div style={{ marginTop: 4 }}>
           <LeaderboardTab
-            accounts={leaderAccounts}
-            allHoldings={leaderHoldings}
-            priceByTeam={priceByTeam}
-            prevPriceByTeam={prevPriceByTeam}
+            ranked={ranked}
             hasAnyDelta={hasAnyDelta}
-            members={members}
             teamsById={teamsById}
             currentUserId={user?.id}
-            startCash={startCash}
           />
           <ActivityFeed transactions={leagueTx} teamsById={teamsById} members={members} currentUserId={user?.id} now={now} onOpen={openSheet} />
         </div>
