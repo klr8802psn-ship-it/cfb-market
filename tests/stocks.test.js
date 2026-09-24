@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { maxBuyShares, maxSellShares, validateBuy, validateSell } from '../src/lib/stocks.js'
+import { maxBuyShares, maxSellShares, validateBuy, validateSell, grossExposure, portfolioValue } from '../src/lib/stocks.js'
 
 const A = 'a', B = 'b'
 
@@ -79,4 +79,47 @@ test('validateSell always allows reducing an over-cap long, even while still ove
 test('validateBuy always allows covering an over-cap short, even while still over cap after', () => {
   const r = validateBuy({ cash: 3000, holdings: [{ team_id: A, shares: -10 }], priceByTeam: { [A]: 100 }, teamId: A, shares: 1 })
   assert.equal(r.ok, true)
+})
+
+// ── Exposure limit: longs + shorts can't exceed portfolio value ──────────────
+const twenty = Object.fromEntries(Array.from({ length: 20 }, (_, i) => ['T' + i, 100]))
+
+test('short proceeds cannot fund unlimited longs (greedy max-out stays at 1x)', () => {
+  let cash = 5000
+  const holdings = []
+  const apply = (t, d) => { const h = holdings.find(x => x.team_id === t); if (h) h.shares += d; else holdings.push({ team_id: t, shares: d }); cash -= d * 100 }
+  for (let i = 0; i < 10; i++) { const n = maxSellShares({ cash, holdings, priceByTeam: twenty, teamId: 'T' + i }); if (n) apply('T' + i, -n) }
+  for (let i = 10; i < 20; i++) { const n = maxBuyShares({ cash, holdings, priceByTeam: twenty, teamId: 'T' + i }); if (n) apply('T' + i, n) }
+  assert.ok(grossExposure(holdings, twenty) <= 5000 + 1e-9)
+  assert.equal(portfolioValue({ cash, holdings, priceByTeam: twenty }), 5000)
+})
+
+test('validateBuy rejects a long funded by short proceeds past the limit', () => {
+  // $5000 portfolio: short $2000 of T0, long $2000 of T1 → gross $4000. Another $2000 long → $6000.
+  const holdings = [{ team_id: 'T0', shares: -20 }, { team_id: 'T1', shares: 20 }]
+  const r = validateBuy({ cash: 5000, holdings, priceByTeam: twenty, teamId: 'T2', shares: 20 })
+  assert.equal(r.ok, false)
+  assert.match(r.reason, /exposure/)
+  assert.equal(maxBuyShares({ cash: 5000, holdings, priceByTeam: twenty, teamId: 'T2' }), 10)
+  assert.equal(validateBuy({ cash: 5000, holdings, priceByTeam: twenty, teamId: 'T2', shares: 10 }).ok, true)
+})
+
+test('validateSell rejects a new short past the limit', () => {
+  const holdings = [{ team_id: 'T1', shares: 20 }, { team_id: 'T2', shares: 20 }]  // $4000 long, $1000 cash
+  assert.equal(maxSellShares({ cash: 1000, holdings, priceByTeam: twenty, teamId: 'T0' }), 10)
+  assert.equal(validateSell({ cash: 1000, holdings, priceByTeam: twenty, teamId: 'T0', shares: 11 }).ok, false)
+})
+
+test('over-leveraged accounts can still shrink positions', () => {
+  // $5000 net = $1000 cash + $10k long - $6k short (3.2x): shaped like the real account this guards against.
+  const holdings = [{ team_id: 'T0', shares: -60 }, { team_id: 'T1', shares: 40 }, { team_id: 'T2', shares: 40 }, { team_id: 'T3', shares: 20 }]
+  const cash = 1000
+  assert.equal(portfolioValue({ cash, holdings, priceByTeam: twenty }), 5000)
+  assert.equal(validateBuy({ cash, holdings, priceByTeam: twenty, teamId: 'T0', shares: 10 }).ok, true)   // cover
+  assert.equal(validateSell({ cash, holdings, priceByTeam: twenty, teamId: 'T1', shares: 10 }).ok, true)  // trim long
+  assert.equal(validateBuy({ cash, holdings, priceByTeam: twenty, teamId: 'T4', shares: 1 }).ok, false)   // new long
+  assert.equal(validateSell({ cash, holdings, priceByTeam: twenty, teamId: 'T5', shares: 1 }).ok, false)  // new short
+  assert.equal(maxBuyShares({ cash, holdings, priceByTeam: twenty, teamId: 'T0' }), 10)   // cash-bound cover
+  assert.equal(maxSellShares({ cash, holdings, priceByTeam: twenty, teamId: 'T1' }), 40)
+  assert.equal(maxSellShares({ cash, holdings, priceByTeam: twenty, teamId: 'T5' }), 0)
 })

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { validateBuy, validateSell, portfolioValue, maxBuyShares, maxSellShares, POSITION_CAP } from '../lib/stocks'
+import { validateBuy, validateSell, portfolioValue, grossExposure, maxBuyShares, maxSellShares, POSITION_CAP, EXPOSURE_CAP } from '../lib/stocks'
 
 function fmt(n) {
   return '$' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -36,6 +36,15 @@ export default function TradeModal({ team, side, cash, holdings, priceByTeam, on
   const allocAfter = portfolio > 0 ? (Math.abs(heldAfter) * price) / portfolio * 100 : 0
   const allocNow = portfolio > 0 ? (Math.abs(held) * price) / portfolio * 100 : 0
   const allocColor = allocAfter > POSITION_CAP * 100 + 1e-6 ? 'var(--negative)' : allocAfter > 30 ? 'var(--accent)' : 'var(--positive)'
+
+  // Total bets (longs + shorts) vs the exposure limit
+  const gross = grossExposure(holdings, priceByTeam)
+  const grossAfter = gross - Math.abs(held * price) + Math.abs(heldAfter * price)
+  const exposureNow = portfolio > 0 ? (gross / portfolio) * 100 : 0
+  const exposureAfter = portfolio > 0 ? (grossAfter / portfolio) * 100 : 0
+  const exposureColor = exposureAfter > EXPOSURE_CAP * 100 + 1e-6 ? 'var(--negative)' : exposureAfter > 85 ? 'var(--accent)' : 'var(--positive)'
+  const atExposureLimit = gross >= EXPOSURE_CAP * portfolio - price
+  const exposureMsg = `You're at your betting limit: longs plus shorts already equal your portfolio value. Sell a long or cover a short to free up room.`
 
   const quick = side === 'buy'
     ? [
@@ -128,11 +137,24 @@ export default function TradeModal({ team, side, cash, holdings, priceByTeam, on
               <span style={{ color: 'var(--faint)', fontWeight: 400 }}> / {Math.round(POSITION_CAP * 100)}% cap</span>
             </span>
           </div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0' }}>
+            <span style={{ fontSize: 12, color: 'var(--muted)' }}>Long + short bets</span>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: exposureColor, fontWeight: 900 }}>
+              {exposureNow.toFixed(0)}% → {exposureAfter.toFixed(0)}%
+              <span style={{ color: 'var(--faint)', fontWeight: 400 }}> / {Math.round(EXPOSURE_CAP * 100)}%</span>
+            </span>
+          </div>
         </div>
 
         {side === 'buy' && maxShares === 0 && (
           <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>
-            {cash < price ? `You need ${fmt(price)} in cash to buy one share.` : `You're at the ${Math.round(POSITION_CAP * 100)}% cap for this team (${fmt(maxPositionAmount)} max).`}
+            {cash < price ? `You need ${fmt(price)} in cash to buy one share.` : atExposureLimit ? exposureMsg : `You're at the ${Math.round(POSITION_CAP * 100)}% cap for this team (${fmt(maxPositionAmount)} max).`}
+          </p>
+        )}
+
+        {side === 'sell' && maxShares === 0 && (
+          <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>
+            {atExposureLimit ? exposureMsg : `You're at the ${Math.round(POSITION_CAP * 100)}% cap for this team (${fmt(maxPositionAmount)} max).`}
           </p>
         )}
 

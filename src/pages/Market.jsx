@@ -77,7 +77,7 @@ function InfoTooltip() {
               You can also short a team you don't own — sell it now, buy it back later. If the price drops in between, you profit the difference.
             </p>
             <p style={{ color: 'var(--muted)', fontSize: 12, lineHeight: 1.5, margin: 0 }}>
-              You can't put more than 40% of your portfolio into a single team.
+              You can't put more than 40% of your portfolio into a single team, and your longs plus shorts can't add up to more than your portfolio value.
             </p>
           </div>
         </>
