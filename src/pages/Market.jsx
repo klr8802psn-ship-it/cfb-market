@@ -167,7 +167,7 @@ function PositionRow({ team, rank, price, prevPrice, held, basis, onOpen }) {
 }
 
 // ── Search + filter chips ─────────────────────────────────────────────────────
-function MarketFilters({ search, onSearch, filter, onFilter, chips }) {
+function MarketFilters({ search, onSearch, filter, onFilter, chips, conference, onConference, conferences }) {
   return (
     <div>
       <div style={{ position: 'relative', marginBottom: 8 }}>
@@ -207,9 +207,33 @@ function MarketFilters({ search, onSearch, filter, onFilter, chips }) {
             </button>
           )
         })}
+        <select
+          value={conference}
+          onChange={e => onConference(e.target.value)}
+          aria-label="Filter by conference"
+          style={{
+            flexShrink: 0, padding: '6px 10px', borderRadius: 'var(--r-pill)', fontSize: 12, fontWeight: 800, fontFamily: 'inherit', cursor: 'pointer',
+            background: conference !== 'all' ? 'var(--accent)' : 'var(--surface)',
+            color: conference !== 'all' ? '#160D02' : 'var(--muted)',
+            border: `1px solid ${conference !== 'all' ? 'var(--accent)' : 'var(--line)'}`,
+          }}
+        >
+          <option value="all">All conferences</option>
+          {conferences.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
       </div>
     </div>
   )
+}
+
+// Power conferences first, then the rest alphabetically.
+const CONFERENCE_ORDER = ['SEC', 'Big Ten', 'Big 12', 'ACC']
+function sortConferences(list) {
+  return [...list].sort((a, b) => {
+    const ia = CONFERENCE_ORDER.indexOf(a), ib = CONFERENCE_ORDER.indexOf(b)
+    if (ia !== -1 || ib !== -1) return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib)
+    return a.localeCompare(b)
+  })
 }
 
 // ── Leaderboard tab ───────────────────────────────────────────────────────────
@@ -394,6 +418,7 @@ export default function Market() {
   // Search / filter
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
+  const [conference, setConference] = useState('all')
 
   // Clock for countdowns — ticks once a minute
   const [now, setNow] = useState(() => new Date())
@@ -550,8 +575,10 @@ export default function Market() {
         (t.conference ?? '').toLowerCase().includes(q)
       )
     }
+    if (conference !== 'all') list = list.filter(t => t.conference === conference)
     if (filter === 'top25') {
-      list = list.filter(t => priceByTeam[t.id] != null).slice(0, 25)
+      // National top 25, so "Top 25 + SEC" means SEC teams ranked in the top 25.
+      list = list.filter(t => rankById[t.id] != null && rankById[t.id] <= 25)
     } else if (filter === 'movers') {
       list = list
         .filter(t => priceByTeam[t.id] != null && prevPriceByTeam[t.id] != null && priceByTeam[t.id] !== prevPriceByTeam[t.id])
@@ -563,7 +590,9 @@ export default function Market() {
         .slice(0, 25)
     }
     return list
-  }, [sortedTeams, search, filter, priceByTeam, prevPriceByTeam])
+  }, [sortedTeams, search, filter, conference, rankById, priceByTeam, prevPriceByTeam])
+
+  const conferences = useMemo(() => sortConferences([...new Set(teams.map(t => t.conference).filter(Boolean))]), [teams])
 
   const tickerItems = useMemo(() => {
     if (!hasAnyPrice) return []
@@ -755,7 +784,7 @@ export default function Market() {
           ))}
         </div>
         {tab === 'market' && (
-          <MarketFilters search={search} onSearch={setSearch} filter={filter} onFilter={setFilter} chips={chips} />
+          <MarketFilters search={search} onSearch={setSearch} filter={filter} onFilter={setFilter} chips={chips} conference={conference} onConference={setConference} conferences={conferences} />
         )}
       </div>
 
@@ -767,8 +796,8 @@ export default function Market() {
               <p style={{ color: 'var(--muted)', fontSize: 14, margin: 0 }}>
                 {search ? `No teams match “${search.trim()}”.` : filter === 'movers' ? 'No price moves yet — check back after the next settle.' : 'Nothing here yet.'}
               </p>
-              {(search || filter !== 'all') && (
-                <button type="button" className="btn btn--ghost" style={{ marginTop: 12, fontSize: 12, padding: '8px 14px' }} onClick={() => { setSearch(''); setFilter('all') }}>Clear filters</button>
+              {(search || filter !== 'all' || conference !== 'all') && (
+                <button type="button" className="btn btn--ghost" style={{ marginTop: 12, fontSize: 12, padding: '8px 14px' }} onClick={() => { setSearch(''); setFilter('all'); setConference('all') }}>Clear filters</button>
               )}
             </div>
           )}
